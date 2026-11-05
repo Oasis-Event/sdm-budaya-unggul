@@ -150,6 +150,8 @@ const SUPABASE_URL = 'https://ynggeraqbwhrhdyfzlzt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_BfAMLQn-xoS6QYFPmfFepw_gyVdyBnU';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let supabaseSession = null;
+let satkerMappings = [];
+let satkerMappingLoaded = false;
 
 async function sbError(result, label) {
   if (result?.error) {
@@ -161,16 +163,20 @@ async function sbError(result, label) {
 async function loadCloudData() {
   // Data demo bawaan tidak dipakai sebagai sumber data produksi.
   roster.clear(); components.length = 0; catpersRecords.length = 0; moveHistory.length = 0;
-  const [people, assessments, cats, moves] = await Promise.all([
+  const [people, assessments, cats, moves, mappings] = await Promise.all([
     sb.from('personel').select('nrp,nama,pangkat,jabatan,tmt,satker,aktif').order('nama'),
     sb.from('penilaian').select('id,nrp,nama,tahun,semester,nilai_akhir,catatan'),
     sb.from('catpers').select('nrp,nama,tahun,semester,status,note,periode'),
-    sb.from('mutasi').select('nrp,nama,pangkat,jabatan,dari,ke,tanggal')
+    sb.from('mutasi').select('nrp,nama,pangkat,jabatan,dari,ke,tanggal'),
+    sb.from('satker_mapping').select('satker_induk,satker_asli,aktif').eq('aktif', true)
   ]);
   const pRows = await sbError(people, 'Memuat nominatif');
   const aRows = await sbError(assessments, 'Memuat penilaian');
   const cRows = await sbError(cats, 'Memuat Catpers');
   const mRows = await sbError(moves, 'Memuat mutasi');
+  const mapRows = await sbError(mappings, 'Memuat pemetaan Satker');
+  satkerMappings = mapRows || [];
+  satkerMappingLoaded = true;
   (pRows || []).forEach(p => addRoster({nrp:p.nrp,nama:p.nama,pangkat:p.pangkat,jabatan:p.jabatan,tmt:p.tmt,satker:p.satker,aktif:p.aktif}));
   (aRows || []).forEach(a => components.push({
     nrp:a.nrp,nama:a.nama,tahun:a.tahun,semester:a.semester,
@@ -257,7 +263,21 @@ NOMINATIF_FILE.forEach(x=>addRoster({nrp:x.nrp,nama:x.nama,pangkat:x.pangkat,jab
 function inferUnit(j){let m=String(j||'').match(/(POLSEK\s+[A-Z ]+|SAT[A-Z]+|BAG[A-Z ]+|SIPROPAM|SI[A-Z ]+)/i);return m?m[0].trim().toUpperCase():'POLRES TRENGGALEK'}
 HIST.forEach(x=>components.push({...x,sipk:x.sipk??x.smk??null,period:'SMT I 2021'}));
 ERDATA.forEach(x=>{let p=roster.get(norm(x.nrp));let c=components.find(y=>y.nrp===x.nrp&&y.period==='SMT II 2026');if(!c)components.push({nrp:x.nrp,nama:x.nama,pangkat:x.pangkat,semester:2,tahun:2026,period:'SMT II 2026',jasmani:null,rohani:x.akhir,psikologi:null,kesehatan:null,catatan:null,smk:null,akademik:null,akhir:null})});
-function visibleRoster(){let a=[...roster.values()];if(current?.role==='Operator Satuan')a=a.filter(p=>p.satker.toLowerCase()===current.unit.toLowerCase());return a}
+function normalizeSatker(value){return String(value||'').trim().toUpperCase().replace(/\s+/g,' ')}
+function isPersonelAktif(p){return p.aktif===true||p.aktif===1||String(p.aktif).toLowerCase()==='true'}
+function visibleRoster(){
+  // Nominatif aktif hanya menampilkan personel dengan status aktif.
+  let a=[...roster.values()].filter(isPersonelAktif);
+  if(!current||current.role==='Admin Utama')return a;
+  // Semua akun non-Admin Utama dibatasi ke Satker induk yang ditetapkan pada profil.
+  if(!satkerMappingLoaded){console.error('Pemetaan Satker belum berhasil dimuat; akses nominatif ditahan.');return []}
+  const unit=normalizeSatker(current.unit);
+  const ownMapping=satkerMappings.find(m=>normalizeSatker(m.satker_induk)===unit||normalizeSatker(m.satker_asli)===unit);
+  if(!ownMapping){console.error('Satker akun tidak ditemukan pada pemetaan:',current.unit);return []}
+  const parent=normalizeSatker(ownMapping.satker_induk);
+  const allowed=new Set(satkerMappings.filter(m=>m.aktif!==false&&normalizeSatker(m.satker_induk)===parent).map(m=>normalizeSatker(m.satker_asli)));
+  return a.filter(p=>allowed.has(normalizeSatker(p.satker)));
+}
 function fillPersonSelects(){['erPerson','emPerson','tkPerson','movePerson'].forEach(id=>{if($(id))$(id).innerHTML=visibleRoster().map(p=>`<option value="${esc(p.nrp)}">${esc(p.nama)} · ${esc(p.nrp)}</option>`).join('')})}
 async function login(){
   const u=$('loginUser').value.trim(), p=$('loginPass').value;
@@ -377,7 +397,7 @@ async function importRoster(){
   };
   reader.readAsArrayBuffer(f);
 }
-function refreshUnitFilter(){let units=[...new Set([...roster.values()].map(p=>p.satker))].sort(),old=$('unitFilter')?.value||'',oldM=$('monitorUnit')?.value||'',oldR=$('rankUnit')?.value||'';$('unitFilter').innerHTML='<option value="">Semua satuan</option>'+units.map(u=>`<option>${esc(u)}</option>`).join('');$('monitorUnit').innerHTML='<option value="">Semua satuan</option>'+units.map(u=>`<option>${esc(u)}</option>`).join('');$('unitFilter').value=units.includes(old)?old:'';$('monitorUnit').value=units.includes(oldM)?oldM:'';if($('rankUnit')){$('rankUnit').innerHTML=units.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('');$('rankUnit').value=units.includes(oldR)?oldR:(units[0]||'')}}
+function refreshUnitFilter(){let units=[...new Set(visibleRoster().map(p=>p.satker))].sort(),old=$('unitFilter')?.value||'',oldM=$('monitorUnit')?.value||'',oldR=$('rankUnit')?.value||'';$('unitFilter').innerHTML='<option value="">Semua satuan</option>'+units.map(u=>`<option>${esc(u)}</option>`).join('');$('monitorUnit').innerHTML='<option value="">Semua satuan</option>'+units.map(u=>`<option>${esc(u)}</option>`).join('');$('unitFilter').value=units.includes(old)?old:'';$('monitorUnit').value=units.includes(oldM)?oldM:'';if($('rankUnit')){$('rankUnit').innerHTML=units.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('');$('rankUnit').value=units.includes(oldR)?oldR:(units[0]||'')}}
 function downloadTemplate(){let rows=[['No','Nama','NRP','Pangkat','Jabatan','TMT Jabatan'],[1,'CONTOH NAMA','12345678','BRIPKA','BA SATUAN POLRES TRENGGALEK','2025-01-01']];let ws=XLSX.utils.aoa_to_sheet(rows);let book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,ws,'Sheet1');XLSX.writeFile(book,'Template_Nominatif_Personel.xlsx')}
 function exportRoster(){let rows=[['No','Nama','NRP','Pangkat','Jabatan','TMT Jabatan','Masa Dinas Jabatan (otomatis)'],...[...roster.values()].sort((a,b)=>a.nama.localeCompare(b.nama)).map((p,i)=>[i+1,p.nama,p.nrp,p.pangkat,p.jabatan,p.tmt,elapsedService(p.tmt)])];let ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:8},{wch:42},{wch:18},{wch:14},{wch:65},{wch:16},{wch:28}];let book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,ws,'Sheet1');XLSX.writeFile(book,'Daftar_Nominatif_Personel.xlsx')}
 function exportComponents(){let rows=[['NRP','Nama','Jasmani','Rohani','Psikologi','Kesehatan','Catatan Personil','SMK','Akademik','Nilai Akhir'],...components.map(c=>[c.nrp,c.nama,c.jasmani,c.rohani,c.psikologi,c.kesehatan,c.catatan,c.sipk??c.smk,c.akademik,c.akhir])];downloadRows(rows,'Rekap_13_Komponen.csv')}
