@@ -49,7 +49,7 @@
 .dashboard-hero h1{color:#fff;font-size:27px;margin:6px 0}.dashboard-hero p{color:#d4e2f1;margin:0;font-size:12px}.dashboard-period{min-width:150px;padding:13px 16px;border:1px solid #ffffff44;border-radius:12px;background:#ffffff12;display:grid;gap:5px}.dashboard-period span,.dashboard-period small{font-size:9px;color:#c8d8e8;letter-spacing:1px}.dashboard-period b{font-size:19px}
 .dashboard-columns{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}.dashboard-columns .panel{margin-bottom:15px}.progress-track{height:12px;background:#e9eff6;border-radius:20px;overflow:hidden}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#ed8b35,#e9b65a);border-radius:20px;transition:width .25s}.progress-meta{display:flex;justify-content:space-between;gap:10px;margin:9px 0 15px;color:#6d7c91;font-size:10px}.unit-progress-list{display:grid;gap:9px}.unit-progress-row{display:grid;grid-template-columns:minmax(100px,1fr) 2fr 45px;gap:10px;align-items:center;font-size:10px}.unit-mini-track{height:7px;background:#edf1f6;border-radius:10px;overflow:hidden}.unit-mini-fill{height:100%;background:#2c8a78}.guide-item{display:grid;gap:4px;padding:10px 0;border-bottom:1px solid #edf1f6}.guide-item:last-child{border:0}.guide-item b{font-size:11px;color:#24476b}.guide-item span{font-size:10px;color:#718096;line-height:1.5}.quick-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.quick-action{border:1px solid #e1e8f0;background:#fbfcfe;border-radius:10px;padding:14px;text-align:left;display:grid;gap:6px;cursor:pointer;color:#1b2940}.quick-action:hover{border-color:#ed8b35;background:#fffaf4}.quick-action>span{font-size:21px;color:#ed8b35}.quick-action b{font-size:11px}.quick-action small{font-size:9px;color:#718096}.monitor-pagination select{min-width:72px}
 @media(max-width:1000px){.dashboard-columns{grid-template-columns:1fr}}@media(max-width:650px){.dashboard-hero{align-items:flex-start;flex-direction:column;padding:19px}.dashboard-period{width:100%}.quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.unit-progress-row{grid-template-columns:90px 1fr 38px}.progress-meta{font-size:9px}}
-</style></head><body>
+.nav-notif{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:12px;background:#d92d20;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}.nav-notif.hidden{display:none!important}</style></head><body>
 <div id="loginScreen" class="loginwrap"><div class="login"><div class="logos"><img id="lPolri"><img id="lJatim"><img id="lSdm"></div><h1>SDM BUDAYA UNGGUL</h1><p>POLRES TRENGGALEK · SISTEM REKAP TERINTEGRASI</p>
 <div class="field"><label>USERNAME</label><input id="loginUser" autocomplete="username" placeholder="Masukkan username"></div><div class="field"><label>PASSWORD</label><input id="loginPass" type="password" autocomplete="current-password" placeholder="Masukkan password"></div><button class="btn block" onclick="login()">MASUK APLIKASI</button>
 <div class="hint"><b>Akun diberikan oleh Admin Utama.</b><br>Username dan password diterbitkan oleh Admin Utama. Tidak tersedia pendaftaran akun mandiri.</div><div id="loginError" style="color:#b33;font-size:11px;margin-top:9px"></div></div></div>
@@ -70,7 +70,7 @@
 <div class="nav" data-page="monitoringdata"><i>▥</i>Monitoring Data Penilaian</div>
 <div class="navlabel">ADMINISTRASI</div>
 <div class="nav adminonly" data-page="akun"><i>♧</i>Akun Jajaran</div>
-<div class="nav" data-page="mutasi"><i>⇄</i>Mutasi & Riwayat</div>
+<div class="nav" data-page="mutasi"><i>⇄</i><span>Mutasi & Riwayat</span><span id="mutationNavBadge" class="nav-notif hidden" title="Pengajuan mutasi menunggu persetujuan">0</span></div>
 <div class="nav" data-page="arsip"><i>◷</i>Arsip Semester</div></aside>
 <main class="main"><header class="top"><strong>SDM BUDAYA UNGGUL / POLRES TRENGGALEK</strong><div class="topright"><span id="userBadge">Admin</span><button class="btn danger" onclick="logout()">Logout</button></div></header><div class="wrap">
 <section id="dash">
@@ -136,7 +136,7 @@
 <section id="erohani" class="hidden"><div class="eyebrow">INPUT PENILAIAN</div><h1>Penilaian E-Rohani</h1><div class="panel"><div class="field"><label>PERSONEL</label><select id="erPerson"></select></div><div class="grid"><div class="field"><label>NRS</label><input id="erNrs" type="number"></div><div class="field"><label>NPA</label><input id="erNpa" type="number"></div><div class="field"><label>NSP</label><input id="erNsp" type="number"></div><div class="field"><label>Nilai akhir</label><input id="erFinal" type="number"></div></div><button class="btn" onclick="saveAssessment('er')">Simpan & sinkron ke Rohani</button></div></section>
 <section id="emental" class="hidden"><div class="eyebrow">INPUT PENILAIAN</div><h1>Penilaian E-Emental</h1><div class="panel"><div class="field"><label>PERSONEL</label><select id="emPerson"></select></div><div class="field"><label>Nilai / hasil E-Emental</label><input id="emFinal" type="number" step=".01"></div><button class="btn" onclick="saveAssessment('em')">Simpan & sinkron ke Psikologi</button></div></section>
 <section id="tkj" class="hidden"><div class="eyebrow">INPUT PENILAIAN</div><h1>Penilaian TKJ</h1><div class="panel"><div class="field"><label>PERSONEL</label><select id="tkPerson"></select></div><div class="grid"><div class="field"><label>Nilai Lari</label><input id="tkRun" type="number"></div><div class="field"><label>Nilai rata-rata tes B</label><input id="tkB" type="number"></div><div class="field"><label>Golongan</label><select id="tkGroup"><option>I</option><option>II</option><option>III</option><option>IV</option></select></div><div class="field"><label>Nilai akhir TKJ</label><input id="tkFinal" type="number" step=".01"></div></div><button class="btn" onclick="saveAssessment('tk')">Simpan & sinkron ke Jasmani</button><p class="footer">Form demo ini menerima nilai akhir. Integrasi rumus datapoint dan tes mentah akan diterapkan pada modul TKJ produksi.</p></div></section>
-<section id="mutasi" class="hidden"><div class="eyebrow">RIWAYAT PENEMPATAN</div><h1>Mutasi & Riwayat</h1><p class="desc">Data personel terhubung langsung dengan Daftar Nominatif Personel. Perubahan satuan akan memperbarui nominatif dan dicatat dalam riwayat.</p><div class="panel"><div class="ph"><h2>Perbarui penempatan personel</h2></div><div class="field"><label>PENCARIAN BERDASARKAN NRP</label><div class="row nrp-search-row"><input id="moveSearchNrp" inputmode="numeric" placeholder="Masukkan NRP personel" onkeydown="if(event.key==='Enter')checkMovePerson()"><button class="btn" type="button" onclick="checkMovePerson()">CEK</button></div></div><div id="movePersonInfo" class="person-detail-box"><div class="muted">Masukkan NRP lalu klik CEK untuk menampilkan data sesuai Daftar Nominatif Personel.</div></div><div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px"><div class="field"><label>SATUAN SAAT INI</label><input id="moveCurrentUnit" readonly></div><div class="field"><label>MUTASI KE SATUAN TUJUAN</label><input id="moveUnit" placeholder="Masukkan nama satker / Polsek tujuan"></div><div class="field"><label>JABATAN TUJUAN</label><input id="moveJabatan" placeholder="Masukkan jabatan baru"></div></div><button class="btn" onclick="movePersonUnit()">Simpan Mutasi</button><div id="moveMsg" class="tiny" style="margin-top:10px"></div></div><div class="panel"><div class="ph"><h2>Daftar Nominatif & Riwayat Mutasi</h2><div class="row"><input class="search" id="moveSearch" placeholder="Cari nama / NRP / satuan" oninput="movePage=1;renderMoveHistory()"><label class="muted">Tampilkan</label><select id="movePageSize" onchange="movePage=1;renderMoveHistory()"><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option></select><span class="muted">data</span></div></div><div class="tablewrap"><table><thead><tr><th>NO</th><th>NRP</th><th>NAMA</th><th>PANGKAT</th><th>JABATAN</th><th>SATUAN AKTIF</th><th>RIWAYAT PERUBAHAN</th></tr></thead><tbody id="moveHistoryRows"></tbody></table></div><div class="pager"><span class="tiny" id="movePageInfo"></span><div class="row"><button class="btn light" onclick="changeMovePage(-1)">Sebelumnya</button><span class="tiny" id="movePageNum"></span><button class="btn light" onclick="changeMovePage(1)">Berikutnya</button></div></div></div></section>
+<section id="mutasi" class="hidden"><div class="eyebrow">RIWAYAT PENEMPATAN</div><h1>Mutasi & Riwayat</h1><p class="desc">Data personel terhubung langsung dengan Daftar Nominatif Personel. Pengajuan Operator menunggu persetujuan Admin Utama. Mutasi Admin Utama langsung memperbarui nominatif dan riwayat.</p><div class="panel"><div class="ph"><h2>Perbarui penempatan personel</h2></div><div class="field"><label>PENCARIAN BERDASARKAN NRP</label><div class="row nrp-search-row"><input id="moveSearchNrp" inputmode="numeric" placeholder="Masukkan NRP personel" onkeydown="if(event.key==='Enter')checkMovePerson()"><button class="btn" type="button" onclick="checkMovePerson()">CEK</button></div></div><div id="movePersonInfo" class="person-detail-box"><div class="muted">Masukkan NRP lalu klik CEK untuk menampilkan data sesuai Daftar Nominatif Personel.</div></div><div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px"><div class="field"><label>SATUAN SAAT INI</label><input id="moveCurrentUnit" readonly></div><div class="field"><label>MUTASI KE SATUAN TUJUAN</label><input id="moveUnit" placeholder="Masukkan nama satker / Polsek tujuan"></div><div class="field"><label>JABATAN TUJUAN</label><input id="moveJabatan" placeholder="Masukkan jabatan baru"></div></div><button class="btn" onclick="movePersonUnit()">Simpan Mutasi</button><div id="moveMsg" class="tiny" style="margin-top:10px"></div></div><div class="panel" id="mutationRequestsPanel"><div class="ph"><h2 id="mutationRequestHeading">Pengajuan Mutasi</h2><span id="mutationPendingBadge" class="pill blue">0 menunggu</span></div><div class="tiny muted" id="mutationRequestHint">Status pengajuan mutasi dan keputusan Admin Utama.</div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Personel</th><th>Asal → Tujuan</th><th>Jabatan tujuan</th><th>Tanggal</th><th>Status / Catatan</th><th id="mutationActionHead">Aksi</th></tr></thead><tbody id="mutationRequestRows"><tr><td colspan="6">Memuat pengajuan...</td></tr></tbody></table></div></div><div class="panel"><div class="ph"><h2>Daftar Nominatif & Riwayat Mutasi</h2><div class="row"><input class="search" id="moveSearch" placeholder="Cari nama / NRP / satuan" oninput="movePage=1;renderMoveHistory()"><label class="muted">Tampilkan</label><select id="movePageSize" onchange="movePage=1;renderMoveHistory()"><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option></select><span class="muted">data</span></div></div><div class="tablewrap"><table><thead><tr><th>NO</th><th>NRP</th><th>NAMA</th><th>PANGKAT</th><th>JABATAN</th><th>SATUAN AKTIF</th><th>RIWAYAT PERUBAHAN</th></tr></thead><tbody id="moveHistoryRows"></tbody></table></div><div class="pager"><span class="tiny" id="movePageInfo"></span><div class="row"><button class="btn light" onclick="changeMovePage(-1)">Sebelumnya</button><span class="tiny" id="movePageNum"></span><button class="btn light" onclick="changeMovePage(1)">Berikutnya</button></div></div></div></section>
 <section id="akun" class="hidden"><div class="eyebrow">ADMINISTRASI AKUN</div><h1>Akun Jajaran</h1><p class="desc">Admin utama membuat akun operator dan menetapkan satuan masing-masing.</p><div class="panel"><div class="ph"><h2>Buat akun baru</h2></div><div class="grid"><div class="field"><label>NRP OPERATOR</label><input id="newOperatorNrp" inputmode="numeric" placeholder="Masukkan NRP operator" oninput="syncOperatorUsername()"></div><div class="field"><label>NAMA OPERATOR (OTOMATIS DARI NOMINATIF)</label><input id="newName" readonly placeholder="Nama akan muncul otomatis setelah NRP diisi"></div><div class="field"><label>USERNAME (OTOMATIS = NRP)</label><input id="newUsername" readonly placeholder="Terisi otomatis dari NRP"></div><div class="field"><label>SATUAN</label><input id="newUnit" placeholder="Contoh: SATLANTAS / POLSEK KAMPAK"></div><div class="field"><label>PERAN</label><select id="newRole"><option>Operator Satuan</option><option>Viewer Pimpinan</option></select></div></div><button class="btn" onclick="createAccount()">Buat akun otomatis</button><div id="newCredential"></div></div><div class="panel"><div class="ph"><h2>Daftar akun</h2><div class="row"><input id="accountSearch" class="search" placeholder="Cari nama / username / satuan" oninput="accountPage=1;renderAccounts()"><label class="muted">Tampilkan</label><select id="accountPageSize" onchange="accountPage=1;renderAccounts()"><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option></select><span class="muted">data</span></div></div><div class="tablewrap"><table><thead><tr><th>NAMA</th><th>USERNAME</th><th>PERAN</th><th>SATUAN</th><th>STATUS</th><th>AKSI</th></tr></thead><tbody id="accountRows"></tbody></table></div><div class="pager"><span class="tiny" id="accountPageInfo"></span><div class="row"><button class="btn light" onclick="changeAccountPage(-1)">Sebelumnya</button><span id="accountPageNum" class="tiny"></span><button class="btn light" onclick="changeAccountPage(1)">Berikutnya</button></div></div></div></section>
 <section id="monitor" class="hidden"><div class="eyebrow">MONITORING</div><h1>Monitoring Satuan</h1><div class="panel"><div class="tablewrap"><table><thead><tr><th>SATUAN</th><th>PERSONEL</th><th>SUDAH DINILAI</th><th>BELUM DINILAI</th></tr></thead><tbody id="monitorRows"></tbody></table></div></div></section>
 <section id="laporan" class="hidden"><div class="eyebrow">REKAP & LAPORAN</div><h1>Rekap & Laporan</h1><div class="panel"><button class="btn" onclick="exportRoster()">Unduh nominatif CSV</button><button class="btn light" onclick="exportComponents()">Unduh rekap 13 komponen CSV</button></div></section>
@@ -774,4 +774,81 @@ restoreSupabaseSession();
 setInterval(()=>{if($('peopleRows'))renderPeople()},60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&$('peopleRows'))renderPeople()});
 window.addEventListener('focus',()=>{if($('peopleRows'))renderPeople()});
+
+// ===== Alur pengajuan mutasi Operator dan persetujuan Admin Utama =====
+let mutationRequests=[];
+async function loadMutationRequests(){
+ const body=$('mutationRequestRows'); if(!body||!current)return;
+ try{
+  let q=sb.from('permohonan_mutasi').select('id,nrp,nama,pangkat,jabatan_asal,jabatan_tujuan,dari,ke,tanggal_pengajuan,status,catatan_admin,created_at,diajukan_oleh,diputus_pada').order('created_at',{ascending:false}).limit(250);
+  const {data,error}=await q;if(error)throw error;
+  mutationRequests=data||[];
+  const isAdmin=current.role==='Admin Utama';
+  const visible=isAdmin?mutationRequests:mutationRequests.filter(x=>x.diajukan_oleh===current.id);
+  const pending=mutationRequests.filter(x=>x.status==='PENDING').length;
+  $('mutationPendingBadge').textContent=isAdmin?`${pending} menunggu`:`${visible.filter(x=>x.status==='PENDING').length} menunggu`;
+  const navBadge=$('mutationNavBadge');if(navBadge){navBadge.textContent=String(pending);navBadge.classList.toggle('hidden',!isAdmin||pending===0);navBadge.title=`${pending} pengajuan mutasi menunggu persetujuan`;}
+  $('mutationRequestHeading').textContent=isAdmin?'Persetujuan Pengajuan Mutasi':'Status Pengajuan Mutasi Saya';
+  $('mutationRequestHint').textContent=isAdmin?'Periksa permohonan Operator. Gunakan ikon centang untuk menerima dan ikon silang untuk menolak.':'Pantau status pengajuan dan catatan keputusan Admin Utama.';
+  if($('mutationActionHead'))$('mutationActionHead').textContent=isAdmin?'Aksi':'Keputusan';
+  body.innerHTML=visible.map(x=>{
+   const status=x.status==='PENDING'?'Menunggu':x.status==='APPROVED'?'Disetujui':'Ditolak';
+   const color=x.status==='APPROVED'?'green':x.status==='REJECTED'?'red':'blue';
+   const actions=isAdmin&&x.status==='PENDING'?`<div class="row" style="gap:6px;flex-wrap:nowrap"><button class="icon-edit" title="Isi catatan / alasan keputusan" aria-label="Catatan" onclick="mutationNote(${x.id})">✎</button><button class="icon-edit" style="color:#187a55" title="Terima pengajuan" aria-label="Terima" onclick="decideMutation(${x.id},'APPROVED')">✓</button><button class="icon-delete" title="Tolak pengajuan" aria-label="Tolak" onclick="decideMutation(${x.id},'REJECTED')">✕</button></div>`:'—';
+   return `<tr><td><b>${esc(x.nama)}</b><br><small>${esc(x.nrp)} · ${esc(x.pangkat||'')}</small></td><td>${esc(x.dari)} → <b>${esc(x.ke)}</b></td><td>${esc(x.jabatan_asal||'—')} → <b>${esc(x.jabatan_tujuan)}</b></td><td>${esc(x.tanggal_pengajuan||'')}</td><td><span class="pill ${color}">${status}</span>${x.catatan_admin?`<br><small>Catatan: ${esc(x.catatan_admin)}</small>`:''}</td><td>${actions}</td></tr>`;
+  }).join('')||'<tr><td colspan="6">Belum ada pengajuan mutasi.</td></tr>';
+ }catch(e){console.error(e);body.innerHTML=`<tr><td colspan="6">Gagal memuat pengajuan: ${esc(e.message||'')}</td></tr>`}
+}
+function mutationNote(id){
+ const x=mutationRequests.find(a=>a.id===id);if(!x)return;
+ const note=prompt('Catatan keputusan (boleh dikosongkan):',x.catatan_admin||'');
+ if(note===null)return;
+ decideMutation(id,'APPROVED',note,true);
+}
+async function decideMutation(id,decision,note='',fromNote=false){
+ if(current?.role!=='Admin Utama'){alert('Hanya Admin Utama yang dapat memutuskan.');return}
+ const x=mutationRequests.find(a=>a.id===id);if(!x)return;
+ if(!fromNote){
+  const action=decision==='APPROVED'?'MENERIMA':'MENOLAK';
+  if(!confirm(`Yakin ${action} pengajuan mutasi ${x.nama} (${x.nrp}) dari ${x.dari} ke ${x.ke}?`))return;
+  note=prompt('Catatan Admin (opsional):',x.catatan_admin||'');if(note===null)return;
+ }
+ try{
+  const {data,error}=await sb.rpc('sdm_putuskan_mutasi',{p_mutasi_id:id,p_keputusan:decision,p_catatan:note});
+  if(error)throw error;if(data?.ok===false)throw new Error(data.message||'Keputusan gagal.');
+  alert(decision==='APPROVED'?'Pengajuan diterima. Data personel telah diperbarui.':'Pengajuan ditolak. Data personel tidak berubah.');
+  await loadData();
+  await loadMutationRequests();
+ }catch(e){console.error(e);alert('Keputusan gagal: '+(e.message||'Kesalahan Supabase'))}
+}
+async function movePersonUnit(){
+ const nrp=moveSelectedNrp,p=roster.get(nrp),unit=norm($('moveUnit').value),jabatanTujuan=norm($('moveJabatan').value);
+ if(!p){alert('Cari dan CEK NRP personel terlebih dahulu.');return}
+ if(!unit||!jabatanTujuan){alert('Satuan dan jabatan tujuan wajib diisi.');return}
+ if(unit.toUpperCase()===p.satker.toUpperCase()&&jabatanTujuan.toUpperCase()===String(p.jabatan||'').toUpperCase()){alert('Satuan dan jabatan tujuan sama dengan data saat ini.');return}
+ const isoDate=new Date().toISOString().slice(0,10),isAdmin=current?.role==='Admin Utama';
+ try{
+  const {data,error}=await sb.rpc('sdm_mutasi_atomic',{p_nrp:String(nrp),p_unit_tujuan:unit,p_jabatan_tujuan:jabatanTujuan,p_tanggal_mutasi:isoDate});
+  if(error)throw error;if(data?.ok===false)throw new Error(data.message||'Mutasi gagal.');
+  $('moveUnit').value='';$('moveJabatan').value='';
+  if(isAdmin){
+   // Muat ulang nominatif dan riwayat dari Supabase agar data layar benar-benar tersinkron.
+   await loadCloudData();
+   const updated=roster.get(String(nrp))||roster.get(nrp);
+   $('moveMsg').textContent=`Mutasi langsung berhasil. ${p.nama} kini bertugas di ${unit}. Data nominatif telah dimuat ulang dari database.`;
+   if(updated){
+    $('moveCurrentUnit').value=updated.satker||unit;
+    $('movePersonInfo').innerHTML=`<div class="person-detail-grid"><strong>NRP</strong><span>${esc(updated.nrp)}</span><strong>Nama</strong><span><b>${esc(updated.nama)}</b></span><strong>Pangkat</strong><span>${esc(updated.pangkat)}</span><strong>Jabatan terbaru</strong><span>${esc(updated.jabatan)}</span><strong>Satuan aktif terbaru</strong><span><b>${esc(updated.satker)}</b></span></div>`;
+   }
+  }else{
+   $('moveMsg').textContent=`Pengajuan mutasi ${p.nama} berhasil dikirim. Perubahan baru berlaku setelah disetujui Admin Utama.`;
+  }
+  await loadMutationRequests();
+ }catch(e){console.error(e);alert('Mutasi belum berhasil: '+(e.message||'Kesalahan Supabase'))}
+}
+const _loadDataMutationBase=loadData;
+loadData=async function(){await _loadDataMutationBase();await loadMutationRequests()};
+const _goMutationBase=go;
+go=function(id){_goMutationBase(id);if(id==='mutasi')loadMutationRequests()};
+
 </script></body></html>
