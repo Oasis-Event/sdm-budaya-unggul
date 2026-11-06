@@ -698,16 +698,17 @@ async function movePersonUnit(){
  if(!unit){alert('Masukkan satuan tujuan mutasi.');return}
  if(!jabatanTujuan){alert('Masukkan jabatan tujuan mutasi.');return}
  if(unit.toUpperCase()===p.satker.toUpperCase() && jabatanTujuan.toUpperCase()===String(p.jabatan||'').toUpperCase()){alert('Satuan dan jabatan tujuan sama dengan data saat ini.');return}
- const old=p.satker,oldJabatan=p.jabatan||'',now=new Date(),date=now.toLocaleDateString('id-ID'),isoDate=now.toISOString().slice(0,10);
+ const now=new Date(),date=now.toLocaleDateString('id-ID'),isoDate=now.toISOString().slice(0,10);
  try{
-  const {error:moveError}=await sb.from('mutasi').insert({
-    nrp,nama:p.nama,pangkat:p.pangkat,jabatan:oldJabatan,jabatan_tujuan:jabatanTujuan,
-    dari:old,ke:unit,tanggal_mutasi:isoDate,input_oleh:current.id
+  // Satu RPC melakukan validasi hak akses, pencatatan riwayat, dan pembaruan personel
+  // dalam satu transaksi PostgreSQL. Tidak ada INSERT/UPDATE terpisah dari browser.
+  const {data,error}=await sb.rpc('sdm_mutasi_atomic',{
+    p_nrp:String(nrp),p_unit_tujuan:unit,p_jabatan_tujuan:jabatanTujuan,p_tanggal_mutasi:isoDate
   });
-  if(moveError)throw moveError;
-  const {error:personError}=await sb.from('personel').update({satker:unit,jabatan:jabatanTujuan}).eq('nrp',nrp);
-  if(personError)throw personError;
- }catch(e){console.error(e);alert('Mutasi belum tersimpan ke Supabase: '+e.message);return}
+  if(error)throw error;
+  if(data && data.ok===false)throw new Error(data.message||'Mutasi ditolak oleh database.');
+ }catch(e){console.error(e);alert('Mutasi belum berhasil. Tidak ada perubahan yang disimpan: '+(e.message||'Kesalahan Supabase'));return}
+ const old=p.satker,oldJabatan=p.jabatan||'';
  moveHistory.unshift({nrp,nama:p.nama,pangkat:p.pangkat,jabatan:oldJabatan,jabatan_tujuan:jabatanTujuan,dari:old,ke:unit,tanggal:date});
  p.satker=unit;p.jabatan=jabatanTujuan;roster.set(nrp,p);
  $('moveUnit').value='';$('moveJabatan').value='';$('moveMsg').textContent=`Penempatan ${p.nama} diperbarui ke ${unit} dengan jabatan ${jabatanTujuan}.`;
