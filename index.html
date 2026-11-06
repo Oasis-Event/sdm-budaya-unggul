@@ -274,14 +274,27 @@ function visibleRoster(){
   // Nominatif aktif hanya menampilkan personel dengan status aktif.
   let a=[...roster.values()].filter(isPersonelAktif);
   if(!current||current.role==='Admin Utama')return a;
-  // Semua akun non-Admin Utama dibatasi ke Satker induk yang ditetapkan pada profil.
+  // Batasi operator pada Satker induk dan seluruh Satker anak yang terdaftar.
   if(!satkerMappingLoaded){console.error('Pemetaan Satker belum berhasil dimuat; akses nominatif ditahan.');return []}
   const unit=normalizeSatker(current.unit);
   const ownMapping=satkerMappings.find(m=>normalizeSatker(m.satker_induk)===unit||normalizeSatker(m.satker_asli)===unit);
   if(!ownMapping){console.error('Satker akun tidak ditemukan pada pemetaan:',current.unit);return []}
   const parent=normalizeSatker(ownMapping.satker_induk);
-  const allowed=new Set(satkerMappings.filter(m=>m.aktif!==false&&normalizeSatker(m.satker_induk)===parent).map(m=>normalizeSatker(m.satker_asli)));
-  return a.filter(p=>allowed.has(normalizeSatker(p.satker)));
+  const allowed=satkerMappings
+    .filter(m=>m.aktif!==false&&normalizeSatker(m.satker_induk)===parent)
+    .map(m=>normalizeSatker(m.satker_asli)).filter(Boolean);
+  // Database bisa menyimpan Satker dalam bentuk singkatan (BAGREN)
+  // atau teks lengkap (BAGREN POLRES TRENGGALEK POLDA JATIM).
+  // Cocokkan juga dengan teks Jabatan, tetapi tetap hanya pada unit di mapping induk akun.
+  const hasUnit=(value,unitName)=>{
+    const text=' '+normalizeSatker(value)+' ';
+    const key=' '+normalizeSatker(unitName)+' ';
+    return text.includes(key);
+  };
+  return a.filter(p=>{
+    const sat=normalizeSatker(p.satker), jab=normalizeSatker(p.jabatan);
+    return allowed.some(child=>sat===child||hasUnit(sat,child)||hasUnit(jab,child));
+  });
 }
 function fillPersonSelects(){['erPerson','emPerson','tkPerson','movePerson'].forEach(id=>{if($(id))$(id).innerHTML=visibleRoster().map(p=>`<option value="${esc(p.nrp)}">${esc(p.nama)} · ${esc(p.nrp)}</option>`).join('')})}
 async function login(){
