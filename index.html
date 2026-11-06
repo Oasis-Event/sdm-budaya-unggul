@@ -280,9 +280,12 @@ function visibleRoster(){
   const ownMapping=satkerMappings.find(m=>normalizeSatker(m.satker_induk)===unit||normalizeSatker(m.satker_asli)===unit);
   if(!ownMapping){console.error('Satker akun tidak ditemukan pada pemetaan:',current.unit);return []}
   const parent=normalizeSatker(ownMapping.satker_induk);
-  const allowed=satkerMappings
-    .filter(m=>m.aktif!==false&&normalizeSatker(m.satker_induk)===parent)
-    .map(m=>normalizeSatker(m.satker_asli)).filter(Boolean);
+  const allowed=new Set([
+    parent,
+    ...satkerMappings
+      .filter(m=>m.aktif!==false&&normalizeSatker(m.satker_induk)===parent)
+      .map(m=>normalizeSatker(m.satker_asli))
+  ].filter(Boolean));
   // Database bisa menyimpan Satker dalam bentuk singkatan (BAGREN)
   // atau teks lengkap (BAGREN POLRES TRENGGALEK POLDA JATIM).
   // Cocokkan juga dengan teks Jabatan, tetapi tetap hanya pada unit di mapping induk akun.
@@ -293,7 +296,7 @@ function visibleRoster(){
   };
   return a.filter(p=>{
     const sat=normalizeSatker(p.satker), jab=normalizeSatker(p.jabatan);
-    return allowed.some(child=>sat===child||hasUnit(sat,child)||hasUnit(jab,child));
+    return [...allowed].some(child=>sat===child||hasUnit(sat,child)||hasUnit(jab,child));
   });
 }
 function fillPersonSelects(){['erPerson','emPerson','tkPerson','movePerson'].forEach(id=>{if($(id))$(id).innerHTML=visibleRoster().map(p=>`<option value="${esc(p.nrp)}">${esc(p.nama)} · ${esc(p.nrp)}</option>`).join('')})}
