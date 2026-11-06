@@ -786,7 +786,12 @@ async function loadMutationRequests(){
   if(error)throw error;
   mutationRequests=data||[];
   const isAdmin=current.role==='Admin Utama';
-  const visibleRaw=isAdmin?mutationRequests:mutationRequests.filter(x=>x.diajukan_oleh===current.id);
+  // Admin hanya melihat pengajuan yang masih menunggu keputusan.
+   // Setelah diputuskan, baris hilang dari antrean Admin; Operator tetap dapat
+   // melihat status akhir dan catatan pada riwayat pengajuannya.
+   const visibleRaw=isAdmin
+    ?mutationRequests.filter(x=>x.status==='PENDING')
+    :mutationRequests.filter(x=>x.diajukan_oleh===current.id);
   // Satukan baris pengajuan yang identik agar pengajuan ganda lama tidak memenuhi daftar.
   const seen=new Set();
   const visible=visibleRaw.filter(x=>{
@@ -798,12 +803,12 @@ async function loadMutationRequests(){
   const navBadge=$('mutationNavBadge');
   if(navBadge){navBadge.textContent=String(pending);navBadge.classList.toggle('hidden',!isAdmin||pending===0);navBadge.title=`${pending} pengajuan mutasi menunggu persetujuan`;}
   $('mutationRequestHeading').textContent=isAdmin?'Persetujuan Pengajuan Mutasi':'Status Pengajuan Mutasi Saya';
-  $('mutationRequestHint').textContent=isAdmin?'Periksa permohonan Operator. Gunakan ikon centang untuk menerima dan ikon silang untuk menolak.':'Pantau status pengajuan dan catatan keputusan Admin Utama.';
+  $('mutationRequestHint').textContent=isAdmin?'Daftar ini hanya menampilkan pengajuan yang masih menunggu. Setelah diputuskan, pengajuan akan hilang dari antrean ini.':'Pantau status pengajuan dan catatan keputusan Admin Utama.';
   if($('mutationActionHead'))$('mutationActionHead').textContent=isAdmin?'Aksi':'Keputusan';
   body.innerHTML=visible.map(x=>{
    const status=x.status==='PENDING'?'Menunggu':x.status==='APPROVED'?'Disetujui':'Ditolak';
    const color=x.status==='APPROVED'?'green':x.status==='REJECTED'?'red':'blue';
-   const actions=isAdmin&&x.status==='PENDING'?`<div class="row" style="gap:6px;flex-wrap:nowrap"><button class="icon-edit" title="Isi catatan / alasan keputusan" aria-label="Catatan" onclick="mutationNote(${x.id})">✎</button><button class="icon-edit" style="color:#187a55" title="Terima pengajuan" aria-label="Terima" onclick="decideMutation(${x.id},'APPROVED')">✓</button><button class="icon-delete" title="Tolak pengajuan" aria-label="Tolak" onclick="decideMutation(${x.id},'REJECTED')">✕</button></div>`:'—';
+   const actions=isAdmin&&x.status==='PENDING'?`<div class="row" style="gap:6px;flex-wrap:nowrap"><button class="icon-edit" title="Isi catatan / alasan keputusan" aria-label="Catatan" onclick="mutationNote(${JSON.stringify(x.id)})">✎</button><button class="icon-edit" style="color:#187a55" title="Terima pengajuan" aria-label="Terima" onclick="decideMutation(${x.id},'APPROVED')">✓</button><button class="icon-delete" title="Tolak pengajuan" aria-label="Tolak" onclick="decideMutation(${x.id},'REJECTED')">✕</button></div>`:'—';
    return `<tr><td><b>${esc(x.nama)}</b><br><small>${esc(x.nrp)} · ${esc(x.pangkat||'')}</small></td><td>${esc(x.dari)} → <b>${esc(x.ke)}</b></td><td>${esc(x.jabatan_asal||'—')} → <b>${esc(x.jabatan_tujuan)}</b></td><td>${esc(x.tanggal_pengajuan||'')}</td><td><span class="pill ${color}">${status}</span>${x.catatan_admin?`<br><small>Catatan: ${esc(x.catatan_admin)}</small>`:''}</td><td>${actions}</td></tr>`;
   }).join('')||'<tr><td colspan="6">Belum ada pengajuan mutasi.</td></tr>';
  }catch(e){
