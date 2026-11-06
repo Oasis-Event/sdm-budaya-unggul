@@ -450,8 +450,24 @@ async function importRoster(){
         const nama=String(get('Nama','Nama Lengkap')).trim();
         const pangkat=String(get('Pangkat')).trim();
         const jabatan=String(get('Jabatan')).trim();
-        const satker=String(get('Satker','Satuan','Satuan Aktif')).trim();
-        if(!nama||!satker){errors.push('Baris '+(idx+2)+' ('+nrp+'): Nama dan Satker wajib diisi.');return}
+        const satkerExcel=String(get('Satker','Satuan','Satuan Aktif')).trim();
+        // Jika kolom Satker kosong/spasi, kenali satuan dari Jabatan.
+        // Kasus SIUM POLRES (termasuk BA SIUM / PS. KASIUM) masuk ke induk POLRES TRENGGALEK.
+        const inferImportSatker=(jab)=>{
+          const j=String(jab||'').toUpperCase().replace(/\\s+/g,' ').trim();
+          if(/\\bSIUM\\s+POLRES\\s+TRENGGALEK\\b/.test(j)) return 'POLRES TRENGGALEK';
+          const polsek=j.match(/\\bPOLSEK\\s+([A-Z ]+?)\\s+POLRES\\s+TRENGGALEK\\b/);
+          if(polsek) return 'POLSEK '+polsek[1].trim();
+          const sat=j.match(/\\b(SAT[A-Z]+)\\b/);
+          if(sat) return sat[1];
+          const bag=j.match(/\\b(BAG[A-Z ]+?)\\s+POLRES\\s+TRENGGALEK\\b/);
+          if(bag) return bag[1].trim();
+          const si=j.match(/\\b(SI[A-Z]+)\\b/);
+          if(si) return si[1];
+          return '';
+        };
+        const satker=satkerExcel||inferImportSatker(jabatan);
+        if(!nama||!satker){errors.push('Baris '+(idx+2)+' ('+nrp+'): Nama wajib diisi dan Satker tidak dapat dikenali dari kolom Satker maupun Jabatan.');return}
         const tmtRaw=get('TMT Jabatan','TMT');
         let tmt=null;
         if(tmtRaw){
@@ -471,7 +487,7 @@ async function importRoster(){
       });
       if(errors.length){alert('Impor dibatalkan. Periksa data berikut:\\n\\n'+errors.slice(0,12).join('\\n')+(errors.length>12?'\\n... dan '+(errors.length-12)+' kesalahan lain':''));return}
       if(!payload.length){alert('Tidak ada baris NRP yang dapat diimpor.');return}
-      if(!confirm('Anda akan menyimpan '+payload.length+' personel ke Supabase. Kolom Satker dan Aktif akan dibaca langsung dari Excel. Lanjutkan?'))return;
+      if(!confirm('Anda akan menyimpan '+payload.length+' personel ke Supabase. Satker kosong akan dikenali dari Jabatan; kolom Aktif kosong mempertahankan status sebelumnya. Lanjutkan?'))return;
       const {data,error}=await sb.from('personel').upsert(payload,{onConflict:'nrp'}).select('nrp');
       if(error)throw error;
       await loadCloudData();
