@@ -316,7 +316,45 @@ function changePage(n){let q=($('personSearch').value||'').toLowerCase(),u=$('un
 function personDetail(n){let p=roster.get(n),c=components.filter(x=>x.nrp===n);if(!p)return;openModal('Detail Personel',`<div class="person-detail-grid"><strong>Nama</strong><span><b>${esc(p.nama)}</b></span><strong>NRP</strong><span>${esc(n)}</span><strong>Pangkat</strong><span>${esc(p.pangkat)}</span><strong>Jabatan</strong><span>${esc(p.jabatan)}</span><strong>TMT Jabatan</strong><span>${fmtDate(p.tmt)}</span><strong>Satuan</strong><span>${esc(p.satker)}</span><strong>Riwayat nilai</strong><span>${c.length} rekaman</span></div>${current?.role==='Admin Utama'?`<button class="btn" style="margin-top:16px" onclick="closeModal();editRosterPerson('${esc(n)}')">✎ Edit Data Personel</button>`:''}`)}
 function openRosterForm(nrp=''){if(current?.role!=='Admin Utama'){alert('Hanya Admin Utama yang dapat menambah personel.');return}let p=nrp?roster.get(String(nrp)):{};openModal(nrp?'Edit Data Personel':'Tambah Anggota',`<div class="field"><label>NRP</label><input id="rfNrp" value="${esc(p?.nrp||'')}" ${nrp?'readonly':''} placeholder="Masukkan NRP"></div><div class="field"><label>NAMA LENGKAP</label><input id="rfNama" value="${esc(p?.nama||'')}" placeholder="Nama lengkap"></div><div class="field"><label>PANGKAT</label><input id="rfPangkat" value="${esc(p?.pangkat||'')}" placeholder="Pangkat"></div><div class="field"><label>JABATAN</label><input id="rfJabatan" value="${esc(p?.jabatan||'')}" placeholder="Jabatan"></div><div class="field"><label>TMT JABATAN</label><input id="rfTmt" type="date" value="${esc(p?.tmt||'')}"></div><div class="field"><label>SATUAN / SATKER</label><input id="rfSatker" value="${esc(p?.satker||current?.unit||'')}" placeholder="Satker / Polsek"></div><button class="btn block" onclick="saveRosterForm('${esc(nrp)}')">Simpan Data Personel</button>`)}
 function editRosterPerson(nrp){openRosterForm(nrp)}
-function saveRosterForm(oldNrp=''){if(current?.role!=='Admin Utama')return;let nrp=norm($('rfNrp').value),nama=norm($('rfNama').value),pangkat=norm($('rfPangkat').value),jabatan=norm($('rfJabatan').value),tmt=norm($('rfTmt').value),satker=norm($('rfSatker').value);if(!nrp||!nama||!satker){alert('NRP, nama, dan satuan wajib diisi.');return}if(!oldNrp&&roster.has(nrp)){alert('NRP sudah terdaftar.');return}addRoster({nrp,nama,pangkat,jabatan,tmt,satker});closeModal();refreshUnitFilter();fillPersonSelects();renderAll();renderMoveHistory();alert(oldNrp?'Data personel berhasil diperbarui.':'Anggota baru berhasil ditambahkan.')}
+async function saveRosterForm(oldNrp=''){
+  if(current?.role!=='Admin Utama')return;
+  const nrp=norm($('rfNrp').value);
+  const nama=norm($('rfNama').value);
+  const pangkat=norm($('rfPangkat').value);
+  const jabatan=norm($('rfJabatan').value);
+  const tmt=norm($('rfTmt').value)||null;
+  const satker=norm($('rfSatker').value);
+  if(!nrp||!nama||!satker){alert('NRP, nama, dan satuan wajib diisi.');return}
+  if(oldNrp && nrp!==String(oldNrp)){alert('NRP personel tidak dapat diubah melalui formulir ini.');return}
+  if(!oldNrp&&roster.has(nrp)){alert('NRP sudah terdaftar.');return}
+  const btn=document.querySelector('#modalBody button[onclick^="saveRosterForm"]');
+  if(btn){btn.disabled=true;btn.textContent='Menyimpan ke Supabase…'}
+  try{
+    let result;
+    if(oldNrp){
+      result=await sb.from('personel')
+        .update({nama,pangkat,jabatan,tmt,satker})
+        .eq('nrp',nrp)
+        .select('nrp,nama,pangkat,jabatan,tmt,satker,aktif')
+        .single();
+    }else{
+      result=await sb.from('personel')
+        .insert({nrp,nama,pangkat,jabatan,tmt,satker,aktif:true})
+        .select('nrp,nama,pangkat,jabatan,tmt,satker,aktif')
+        .single();
+    }
+    if(result.error)throw result.error;
+    if(!result.data)throw new Error('Supabase tidak mengembalikan data tersimpan.');
+    addRoster(result.data);
+    await loadCloudData();
+    closeModal();
+    alert(oldNrp?'Data personel berhasil diperbarui dan tersimpan di Supabase.':'Anggota baru berhasil ditambahkan ke Supabase.');
+  }catch(err){
+    console.error('Gagal menyimpan data personel:',err);
+    alert('Gagal menyimpan ke Supabase: '+(err.message||String(err)));
+    if(btn){btn.disabled=false;btn.textContent='Simpan Data Personel'}
+  }
+}
 function renderComponents(){let period=activePeriod(),q=($('compSearch')?.value||'').toLowerCase(),a=visibleRoster().filter(p=>[p.nama,p.nrp].join(' ').toLowerCase().includes(q));$('compRows').innerHTML=a.slice(0,200).map(p=>{let c=components.find(x=>String(x.nrp)===String(p.nrp)&&x.period===period)||{};return `<tr><td>${esc(p.nrp)}</td><td>${esc(p.nama)}</td><td>${val(c.jasmani)}</td><td>${val(c.rohani)}</td><td>${val(c.psikologi)}</td><td>${val(c.kesehatan)}</td><td>${val(c.catatan)}</td><td>${val(c.sipk??c.smk)}</td><td>${val(c.akademik)}</td><td>${val(c.akhir)}</td></tr>`}).join('')}
 function val(x){return x==null?'—':Number(x).toFixed(2)}
 function saveAssessment(type){let period=activePeriod(),prefix=type==='er'?'er':type==='em'?'em':'tk',nrp=$(prefix+'Person').value,p=roster.get(nrp);if(!p){alert('Personel tidak ditemukan.');return}let score=type==='er'?Number($('erFinal').value):type==='em'?Number($('emFinal').value):Number($('tkFinal').value);if(!Number.isFinite(score)||$(type==='er'?'erFinal':type==='em'?'emFinal':'tkFinal').value===''){alert('Isi nilai akhir terlebih dahulu.');return}let rec={nrp,nama:p.nama,score,period,semester:Number(period.match(/SMT\s*(\d)/i)?.[1]||2),tahun:Number(period.match(/20\d{2}/)?.[0]||2026),date:new Date().toISOString().slice(0,10)};assessments[type].push(rec);let c=components.find(x=>String(x.nrp)===String(nrp)&&x.period===period);if(!c){c={nrp,nama:p.nama,pangkat:p.pangkat,period,semester:Number(period.match(/SMT\s*(\d)/i)?.[1]||2),tahun:Number(period.match(/20\d{2}/)?.[0]||2026)};components.push(c)}if(type==='er')c.rohani=score;if(type==='em')c.psikologi=score;if(type==='tk')c.jasmani=score;alert('Nilai tersimpan pada demo dan langsung disinkronkan ke rekap 13 Komponen.');renderAll()}
@@ -414,7 +452,7 @@ async function importRoster(){
 }
 function refreshUnitFilter(){let units=[...new Set(visibleRoster().map(p=>p.satker))].sort(),old=$('unitFilter')?.value||'',oldM=$('monitorUnit')?.value||'',oldR=$('rankUnit')?.value||'';$('unitFilter').innerHTML='<option value="">Semua satuan</option>'+units.map(u=>`<option>${esc(u)}</option>`).join('');$('monitorUnit').innerHTML='<option value="">Semua satuan</option>'+units.map(u=>`<option>${esc(u)}</option>`).join('');$('unitFilter').value=units.includes(old)?old:'';$('monitorUnit').value=units.includes(oldM)?oldM:'';if($('rankUnit')){$('rankUnit').innerHTML=units.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('');$('rankUnit').value=units.includes(oldR)?oldR:(units[0]||'')}}
 function downloadTemplate(){let rows=[['No','Nama','NRP','Pangkat','Jabatan','TMT Jabatan'],[1,'CONTOH NAMA','12345678','BRIPKA','BA SATUAN POLRES TRENGGALEK','2025-01-01']];let ws=XLSX.utils.aoa_to_sheet(rows);let book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,ws,'Sheet1');XLSX.writeFile(book,'Template_Nominatif_Personel.xlsx')}
-function exportRoster(){let rows=[['No','Nama','NRP','Pangkat','Jabatan','TMT Jabatan','Masa Dinas Jabatan (otomatis)'],...[...roster.values()].sort((a,b)=>a.nama.localeCompare(b.nama)).map((p,i)=>[i+1,p.nama,p.nrp,p.pangkat,p.jabatan,p.tmt,elapsedService(p.tmt)])];let ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:8},{wch:42},{wch:18},{wch:14},{wch:65},{wch:16},{wch:28}];let book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,ws,'Sheet1');XLSX.writeFile(book,'Daftar_Nominatif_Personel.xlsx')}
+function exportRoster(){let rows=[['No','Nama','NRP','Pangkat','Jabatan','TMT Jabatan','Masa Dinas Jabatan (otomatis)','Satker','Aktif'],...[...roster.values()].sort((a,b)=>a.nama.localeCompare(b.nama)).map((p,i)=>[i+1,p.nama,p.nrp,p.pangkat,p.jabatan,p.tmt,elapsedService(p.tmt),p.satker,p.aktif!==false])];let ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:8},{wch:42},{wch:18},{wch:14},{wch:65},{wch:16},{wch:28},{wch:28},{wch:12}];let book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,ws,'Sheet1');XLSX.writeFile(book,'Daftar_Nominatif_Personel.xlsx')}
 function exportComponents(){let rows=[['NRP','Nama','Jasmani','Rohani','Psikologi','Kesehatan','Catatan Personil','SMK','Akademik','Nilai Akhir'],...components.map(c=>[c.nrp,c.nama,c.jasmani,c.rohani,c.psikologi,c.kesehatan,c.catatan,c.sipk??c.smk,c.akademik,c.akhir])];downloadRows(rows,'Rekap_13_Komponen.csv')}
 function downloadRows(rows,name){let csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 function openModal(t,b){$('modalTitle').textContent=t;$('modalBody').innerHTML=b;$('modal').classList.add('show')}function closeModal(){$('modal').classList.remove('show')}
