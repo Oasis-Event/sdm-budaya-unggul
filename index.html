@@ -786,6 +786,10 @@ async function loadMutationRequests(){
   if(error)throw error;
   mutationRequests=data||[];
   const isAdmin=current.role==='Admin Utama';
+  // Satu panel dipakai bersama, tetapi isi dan kewenangannya dipisahkan tegas menurut role.
+  // Admin Utama hanya menerima antrean PENDING; Operator hanya melihat pengajuan miliknya.
+  const requestPanel=$('mutationRequestsPanel');
+  if(requestPanel) requestPanel.dataset.roleView=isAdmin?'admin-approval':'operator-own-status';
   // Admin hanya melihat pengajuan yang masih menunggu keputusan.
    // Setelah diputuskan, baris hilang dari antrean Admin; Operator tetap dapat
    // melihat status akhir dan catatan pada riwayat pengajuannya.
@@ -803,7 +807,9 @@ async function loadMutationRequests(){
   const navBadge=$('mutationNavBadge');
   if(navBadge){navBadge.textContent=String(pending);navBadge.classList.toggle('hidden',!isAdmin||pending===0);navBadge.title=`${pending} pengajuan mutasi menunggu persetujuan`;}
   $('mutationRequestHeading').textContent=isAdmin?'Persetujuan Pengajuan Mutasi':'Status Pengajuan Mutasi Saya';
-  $('mutationRequestHint').textContent=isAdmin?'Daftar ini hanya menampilkan pengajuan yang masih menunggu. Setelah diputuskan, pengajuan akan hilang dari antrean ini.':'Pantau status pengajuan dan catatan keputusan Admin Utama.';
+  $('mutationRequestHint').textContent=isAdmin
+   ?'Khusus Admin Utama: tinjau dan putuskan pengajuan Operator. Pengajuan yang diterima atau ditolak otomatis hilang dari antrean.'
+   :'Riwayat pengajuan milik akun Anda saja. Keputusan dan catatan Admin Utama dapat dilihat di sini; Operator tidak memiliki tombol persetujuan.';
   if($('mutationActionHead'))$('mutationActionHead').textContent=isAdmin?'Aksi':'Keputusan';
   body.innerHTML=visible.map(x=>{
    const status=x.status==='PENDING'?'Menunggu':x.status==='APPROVED'?'Disetujui':'Ditolak';
