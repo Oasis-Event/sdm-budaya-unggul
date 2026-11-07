@@ -34,7 +34,7 @@
 .assessment-layout{display:grid;grid-template-columns:minmax(290px,.82fr) minmax(440px,1.45fr);gap:15px;align-items:start}
 .assessment-left,.assessment-right{min-width:0}
 .assessment-left>.btn{width:100%}
-.nrp-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto}
+.nrp-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto}
 .nrp-search-row input{min-width:0;width:100%}
 .assessment-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .assessment-scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
@@ -92,8 +92,9 @@
     <div class="field">
       <label>PENCARIAN BERDASARKAN NRP</label>
       <div class="row nrp-search-row">
-        <input id="assessmentSearchNrp" inputmode="numeric" placeholder="Masukkan NRP personel" onkeydown="if(event.key==='Enter')checkAssessmentPerson()">
+        <input id="assessmentSearchNrp" inputmode="numeric" placeholder="Masukkan NRP personel" oninput="toggleAssessmentClear()" onkeydown="if(event.key==='Enter')checkAssessmentPerson()">
         <button class="btn" type="button" onclick="checkAssessmentPerson()">CEK</button>
+        <button id="clearAssessmentSearch" class="btn light" type="button" onclick="clearAssessmentPerson()" title="Hapus pencarian" aria-label="Hapus pencarian" style="display:none;padding:8px 13px;font-size:18px;font-weight:800">×</button>
       </div>
     </div>
     <div id="assessmentPersonInfo" class="person-detail-box">
@@ -103,8 +104,8 @@
   <div class="panel assessment-right">
     <div class="ph"><h2>Form Input Nilai Personil</h2><span class="pill blue">Input terpadu</span></div>
     <div class="assessment-meta">
-      <div class="field"><label>TAHUN PENILAIAN</label><input id="assessmentYear" type="number" value="2026"></div>
-      <div class="field"><label>SEMESTER PENILAIAN</label><select id="assessmentSemester"><option value="1">Semester I</option><option value="2" selected>Semester II</option></select></div>
+      <div class="field"><label>TAHUN PENILAIAN</label><input id="assessmentYear" type="number" value="2026" onchange="reloadAssessmentValues()"></div>
+      <div class="field"><label>SEMESTER PENILAIAN</label><select id="assessmentSemester" onchange="reloadAssessmentValues()"><option value="1">Semester I</option><option value="2" selected>Semester II</option></select></div>
       <div class="field"><label>TANGGAL DIBUAT</label><input id="assessmentDate" type="date"></div>
     </div>
     <div class="assessment-scores">
@@ -622,8 +623,41 @@ function chooseAssessmentPerson(nrp){
   if(!p)return;
   assessmentPersonNrp=p.nrp;
   $('assessmentSearchNrp').value=p.nrp;
+  toggleAssessmentClear();
   renderAssessmentPerson(p);
+  loadAssessmentValues(p);
   closePersonnelPicker();
+}
+function toggleAssessmentClear(){
+  const btn=$('clearAssessmentSearch');
+  if(btn)btn.style.display=$('assessmentSearchNrp').value.trim()?'inline-flex':'none';
+}
+function clearAssessmentPerson(){
+  assessmentPersonNrp='';
+  $('assessmentSearchNrp').value='';
+  $('assessmentPersonInfo').innerHTML='<div class="muted">Belum ada personel dipilih. Klik LIST PERSONEL atau masukkan NRP lalu klik CEK.</div>';
+  clearAssessmentScoreInputs();
+  toggleAssessmentClear();
+}
+function clearAssessmentScoreInputs(){
+  ['scoreRohani','scorePsikologi','scoreKesehatan','scoreAkademik','scoreJasmani','scoreSipk'].forEach(id=>{if($(id))$(id).value=''});
+}
+function reloadAssessmentValues(){
+  if(assessmentPersonNrp){
+    const p=roster.get(String(assessmentPersonNrp));
+    if(p)loadAssessmentValues(p);
+  }
+}
+function loadAssessmentValues(p){
+  clearAssessmentScoreInputs();
+  const year=Number($('assessmentYear').value), semester=Number($('assessmentSemester').value);
+  const saved=components.find(x=>String(x.nrp)===String(p.nrp)&&Number(x.tahun)===year&&Number(x.semester)===semester)
+    || components.find(x=>String(x.nrp)===String(p.nrp)&&x.period===`SMT ${semester} ${year}`);
+  if(!saved)return;
+  const fields={rohani:'scoreRohani',psikologi:'scorePsikologi',kesehatan:'scoreKesehatan',akademik:'scoreAkademik',jasmani:'scoreJasmani',sipk:'scoreSipk'};
+  Object.entries(fields).forEach(([key,id])=>{
+    if(saved[key]!==undefined&&saved[key]!==null&&saved[key]!=='')$(id).value=saved[key];
+  });
 }
 function renderAssessmentPerson(p){
   $('assessmentPersonInfo').innerHTML=`<div style="font-weight:800;color:#0e5265;margin-bottom:10px">Keterangan Personil</div>
@@ -638,13 +672,16 @@ function renderAssessmentPerson(p){
 }
 function checkAssessmentPerson(){
   let nrp=$('assessmentSearchNrp').value.trim(),p=roster.get(nrp);
+  toggleAssessmentClear();
   if(!p){
     assessmentPersonNrp='';
+    clearAssessmentScoreInputs();
     $('assessmentPersonInfo').innerHTML='<span style="color:#a83333;font-weight:700">Personel tidak ditemukan. Periksa kembali NRP atau gunakan LIST PERSONEL.</span>';
     return;
   }
   assessmentPersonNrp=p.nrp;
   renderAssessmentPerson(p);
+  loadAssessmentValues(p);
 }
 async function saveCombinedAssessment(isDraft=false){
   if(!assessmentPersonNrp){alert('Silakan pilih personel terlebih dahulu melalui LIST PERSONEL atau pencarian NRP.');return}
@@ -678,7 +715,12 @@ async function saveCombinedAssessment(isDraft=false){
     if(error)throw error;
     await loadCloudData();
     renderAll();
-    alert(isDraft?'Nilai sementara berhasil disimpan. Anda dapat melanjutkan pengisian kapan saja.':'Penilaian berhasil disimpan. Komponen yang belum diisi tetap dapat dilengkapi kemudian.');
+    if(isDraft){
+      clearAssessmentPerson();
+      alert('Nilai sementara berhasil disimpan. Form nilai dan pencarian personel telah dikosongkan; data tersimpan dapat muncul kembali saat NRP diperiksa.');
+    }else{
+      alert('Penilaian berhasil disimpan. Komponen yang belum diisi tetap dapat dilengkapi kemudian.');
+    }
   }catch(e){console.error(e);alert('Gagal menyimpan penilaian: '+e.message)}
 }
 
