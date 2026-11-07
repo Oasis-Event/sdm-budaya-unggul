@@ -77,6 +77,7 @@
 <section id="dash">
 <div class="dashboard-hero"><div><div class="eyebrow">PUSAT KENDALI DATA SDM</div><h1>Dashboard SDM Budaya Unggul</h1><p>Ringkasan pekerjaan operator, progres penilaian, dan kondisi data personel Polres Trenggalek.</p></div><div class="dashboard-period"><span>PERIODE AKTIF</span><b id="periodLabel">SMT II 2026</b><small id="dashboardToday">—</small></div></div>
 <div class="grid dashboard-stats" id="stats"></div>
+<div class="panel hidden" id="activeUsersPanel" style="margin-bottom:15px"><div class="ph"><h2>Pengguna Login Aktif</h2><span class="pill green" id="activeUsersCount">0 aktif</span></div><div id="activeUsersList" class="tiny">Memuat status login…</div><div class="tiny muted" style="margin-top:8px">Status aktif diperbarui otomatis. Pengguna dianggap aktif jika ada aktivitas dalam 2 menit terakhir.</div></div>
 <div class="dashboard-columns">
 <div class="panel"><div class="ph"><h2>Rekap Progres Penilaian Periode Aktif per Satuan</h2><div class="row"><span class="pill blue" id="dashboardProgressLabel">0%</span><button class="btn light" onclick="exportUnitProgressWA()">⬇ Unduh Rekap WA (.txt)</button></div></div><div class="progress-track"><div id="dashboardProgressBar" class="progress-fill"></div></div><div class="progress-meta"><span id="dashboardScored">0 personel sudah dinilai</span><span id="dashboardUnscored">0 belum dinilai</span></div><div class="row" style="justify-content:flex-end;margin:8px 0"><label class="muted">Tampilkan</label><select id="dashboardUnitPageSize" onchange="dashboardUnitPage=1;renderDashboardUnitProgress()"><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option></select><span class="muted">satuan</span></div><div id="dashboardUnitProgress" class="unit-progress-list"></div><div class="pager"><span class="tiny" id="dashboardUnitPageInfo"></span><div class="row"><button class="btn light" onclick="changeDashboardUnitPage(-1)">Sebelumnya</button><span class="tiny" id="dashboardUnitPageNum"></span><button class="btn light" onclick="changeDashboardUnitPage(1)">Berikutnya</button></div></div></div>
 <div class="panel dashboard-guide"><div class="ph"><h2>Panel Petunjuk Operator</h2><span class="pill">Panduan kerja</span></div><div class="guide-item"><b>01 · Periksa nominatif</b><span>Pastikan personel dan satuan sudah benar sebelum menginput penilaian.</span></div><div class="guide-item"><b>02 · Input nilai</b><span>Gunakan Form Penilaian untuk mengisi nilai berdasarkan NRP, tahun, dan semester.</span></div><div class="guide-item"><b>03 · Catatan personel</b><span>Catat status dan keterangan personel melalui Form Catpers.</span></div><div class="guide-item"><b>04 · Pantau hasil</b><span>Periksa Monitoring Data Penilaian dan unduh laporan bila diperlukan.</span></div></div></div>
@@ -235,7 +236,9 @@ async function restoreSupabaseSession() {
 function showLoggedIn() {
   $('loginScreen').classList.add('hidden'); $('appScreen').classList.remove('hidden');
   $('userBadge').textContent = current.name + ' · ' + current.unit;
-  document.querySelectorAll('.adminonly').forEach(x => x.classList.toggle('hidden', current.role !== 'Admin Utama'));
+  document.querySelectorAll('.adminonly').forEach(x => x.classList.toggle('hidden', !isMainAdmin()));
+  const activePanel=$('activeUsersPanel'); if(activePanel) activePanel.classList.toggle('hidden',!isMainAdmin());
+  startPresenceTracking();
   fillPersonSelects(); renderAll();
   const savedPage=localStorage.getItem('sdm_budaya_unggul_last_page');
   const allowedPage=savedPage && $(savedPage) && document.querySelector(`.nav[data-page="${savedPage}"]`);
@@ -246,6 +249,7 @@ const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g
 ['polri','jatim','sdm'].forEach((k,i)=>{let ids=[['lPolri','sPolri'],['lJatim','sJatim'],['lSdm','sSdm']][i];ids.forEach(id=>$(id).src=LOGOS[k])});
 let roster=new Map(),components=[],moveHistory=[],moveSelectedNrp='',dashboardUnitPage=1,movePage=1,assessments={er:[],em:[],tk:[]},accounts=[],current=null,page=1,accountPage=1;
 function norm(v){return String(v??'').trim()}
+function isMainAdmin(){const r=String(current?.role||'').trim().toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ');return ['admin utama','admin utama polres','superadmin','super admin'].includes(r)}
 function splitPositionInfo(raw){let text=norm(raw),gol='',masa='';let m=text.match(/\s*(?:\(([^()]*)\)\s*)?\((\d+\s+Tahun\s+\d+\s+Bulan\s+\d+\s+Hari)\)\s*$/i);if(m){masa=m[2].trim();text=text.slice(0,m.index).trim()}return {jabatan:text,masaDinasJabatan:masa}}
 function elapsedService(tmt){
   if(!tmt)return 'TMT belum tersedia';
@@ -286,7 +290,7 @@ function isPersonelAktif(p){return p.aktif===true||p.aktif===1||String(p.aktif).
 function visibleRoster(){
   // Nominatif aktif hanya menampilkan personel dengan status aktif.
   let a=[...roster.values()].filter(isPersonelAktif);
-  if(!current||current.role==='Admin Utama')return a;
+  if(!current||isMainAdmin())return a;
   // Batasi operator pada Satker induk dan seluruh Satker anak yang terdaftar.
   if(!satkerMappingLoaded){console.error('Pemetaan Satker belum berhasil dimuat; akses nominatif ditahan.');return []}
   const unit=normalizeSatker(current.unit);
@@ -313,6 +317,30 @@ function visibleRoster(){
   });
 }
 function fillPersonSelects(){['erPerson','emPerson','tkPerson','movePerson'].forEach(id=>{if($(id))$(id).innerHTML=visibleRoster().map(p=>`<option value="${esc(p.nrp)}">${esc(p.nama)} · ${esc(p.nrp)}</option>`).join('')})}
+// ===== PRESENSI LOGIN AKTIF (heartbeat setiap 30 detik) =====
+let presenceTimer=null, presenceRefreshTimer=null;
+async function sendPresence(){
+  if(!current || !supabaseSession) return;
+  const row={user_id:current.id,nama:current.name,username:current.username,role:current.role,satker:current.unit,last_seen_at:new Date().toISOString()};
+  const {error}=await sb.from('user_presence').upsert(row,{onConflict:'user_id'});
+  if(error) console.warn('Presensi belum tersedia:',error.message);
+}
+async function refreshActiveUsers(){
+  if(!isMainAdmin()) return;
+  const box=$('activeUsersList'),count=$('activeUsersCount'); if(!box||!count)return;
+  const cutoff=new Date(Date.now()-120000).toISOString();
+  const {data,error}=await sb.from('user_presence').select('nama,username,role,satker,last_seen_at').gte('last_seen_at',cutoff).order('last_seen_at',{ascending:false});
+  if(error){box.textContent='Belum dapat membaca daftar login aktif. Pastikan tabel user_presence sudah dibuat di Supabase.';count.textContent='—';return}
+  const rows=data||[]; count.textContent=rows.length+' aktif';
+  box.innerHTML=rows.length?'<div class="tablewrap"><table><thead><tr><th>NAMA</th><th>USERNAME</th><th>PERAN</th><th>SATUAN</th><th>AKTIVITAS TERAKHIR</th></tr></thead><tbody>'+rows.map(x=>`<tr><td><b>${esc(x.nama||'—')}</b></td><td>${esc(x.username||'—')}</td><td>${esc(x.role||'—')}</td><td>${esc(x.satker||'—')}</td><td>${new Date(x.last_seen_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td></tr>`).join('')+'</tbody></table></div>':'Belum ada pengguna lain yang login aktif.';
+}
+function startPresenceTracking(){
+  if(presenceTimer)clearInterval(presenceTimer); if(presenceRefreshTimer)clearInterval(presenceRefreshTimer);
+  sendPresence(); presenceTimer=setInterval(sendPresence,30000);
+  refreshActiveUsers(); presenceRefreshTimer=setInterval(refreshActiveUsers,30000);
+}
+window.addEventListener('beforeunload',()=>{if(presenceTimer)clearInterval(presenceTimer)});
+
 async function login(){
   const u=$('loginUser').value.trim(), p=$('loginPass').value;
   $('loginError').textContent='Memeriksa akun…';
@@ -334,25 +362,27 @@ async function login(){
   }
 }
 async function logout(){
+  if(presenceTimer)clearInterval(presenceTimer); if(presenceRefreshTimer)clearInterval(presenceRefreshTimer);
+  if(current?.id) await sb.from('user_presence').delete().eq('user_id',current.id);
   await sb.auth.signOut();
   supabaseSession=null; current=null;
   $('appScreen').classList.add('hidden'); $('loginScreen').classList.remove('hidden');
   $('loginPass').value=''; $('loginError').textContent='';
 }
-function go(id){if(id==='bobot'&&current?.role!=='Admin Utama'){alert('Menu Form Rumus Penilaian hanya dapat diakses Admin Utama.');return}const target=$(id);if(!target)return;document.querySelectorAll('.wrap section').forEach(x=>x.classList.add('hidden'));target.classList.remove('hidden');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));if(current)localStorage.setItem('sdm_budaya_unggul_last_page',id);if((id==='formpenilaian'||id==='formcatpers')&&$('assessmentDate')&&!$('assessmentDate').value){let d=new Date();$('assessmentDate').value=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}renderAll()}
+function go(id){if(id==='bobot'&&!isMainAdmin()){alert('Menu Form Rumus Penilaian hanya dapat diakses Admin Utama.');return}const target=$(id);if(!target)return;document.querySelectorAll('.wrap section').forEach(x=>x.classList.add('hidden'));target.classList.remove('hidden');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));if(current)localStorage.setItem('sdm_budaya_unggul_last_page',id);if((id==='formpenilaian'||id==='formcatpers')&&$('assessmentDate')&&!$('assessmentDate').value){let d=new Date();$('assessmentDate').value=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}renderAll()}
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.page));
 document.querySelectorAll('#bobot input').forEach(el=>el.addEventListener('input',renderWeightTotal));
 function renderDashboardUnitProgress(){let a=visibleRoster(),period=activePeriod(),scored=new Set(components.filter(c=>c.period===period).map(c=>String(c.nrp))),units=[...new Set(a.map(p=>p.satker))].sort(),size=Number($('dashboardUnitPageSize')?.value||10),pages=Math.max(1,Math.ceil(units.length/size));dashboardUnitPage=Math.max(1,Math.min(dashboardUnitPage,pages));let start=(dashboardUnitPage-1)*size,shown=units.slice(start,start+size);$('dashboardUnitProgress').innerHTML=shown.map(u=>{let members=a.filter(p=>p.satker===u),n=members.filter(p=>scored.has(String(p.nrp))).length,not=members.length-n,rate=members.length?Math.round(n/members.length*100):0;return `<div class="unit-progress-row" style="grid-template-columns:minmax(130px,1fr) 2fr minmax(115px,auto)"><b>${esc(u)}</b><div><div class="unit-mini-track"><div class="unit-mini-fill" style="width:${rate}%"></div></div><span class="tiny">${rate}% · ${n} sudah dinilai</span></div><span style="text-align:right">${members.length} personel<br><span class="tiny">${not} belum</span></span></div>`}).join('')||'<span class="muted">Belum ada data satuan.</span>';$('dashboardUnitPageInfo').textContent=`Menampilkan ${units.length?start+1:0}–${Math.min(start+size,units.length)} dari ${units.length} satuan`;$('dashboardUnitPageNum').textContent=`Halaman ${dashboardUnitPage} / ${pages}`}
 function changeDashboardUnitPage(d){let units=[...new Set(visibleRoster().map(p=>p.satker))],pages=Math.max(1,Math.ceil(units.length/Number($('dashboardUnitPageSize')?.value||10)));dashboardUnitPage=Math.max(1,Math.min(pages,dashboardUnitPage+d));renderDashboardUnitProgress()}
 function activePeriod(){return $('compPeriod')?.value||'SMT II 2026'}
 function renderAll(){if($('monitorUnit'))refreshUnitFilter();let a=visibleRoster(),period=activePeriod(),scored=new Set(components.filter(c=>c.period===period).map(c=>String(c.nrp))),done=a.filter(p=>scored.has(String(p.nrp))).length,pct=a.length?Math.round(done/a.length*100):0;$('stats').innerHTML=[['Total personel',a.length,'Dalam cakupan satuan akun'],['Sudah dinilai',done,'Periode '+period],['Belum dinilai',Math.max(0,a.length-done),'Perlu tindak lanjut operator']].map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="num">${x[1]}</div><div class="tiny">${x[2]}</div></div>`).join('');if($('dashboardProgressLabel'))$('dashboardProgressLabel').textContent=pct+'%';if($('dashboardProgressBar'))$('dashboardProgressBar').style.width=pct+'%';if($('dashboardScored'))$('dashboardScored').textContent=done+' personel sudah dinilai';if($('dashboardUnscored'))$('dashboardUnscored').textContent=Math.max(0,a.length-done)+' belum dinilai';if($('dashboardToday'))$('dashboardToday').textContent=new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});renderDashboardUnitProgress();renderPeople();renderComponents();renderExtra();if($('moveHistoryRows'))renderMoveHistory();let scoredUnits=new Set(components.filter(c=>c.period===period).map(c=>String(c.nrp)));$('monitorRows').innerHTML=[...new Set(a.map(p=>p.satker))].sort().map(u=>{let members=a.filter(p=>p.satker===u),doneUnit=members.filter(p=>scoredUnits.has(String(p.nrp))).length;return `<tr><td>${esc(u)}</td><td>${members.length}</td><td>${doneUnit}</td><td>${members.length-doneUnit}</td></tr>`}).join('');renderAccounts()}
-function renderPeople(){let q=($('personSearch')?.value||'').toLowerCase(),u=$('unitFilter')?.value||'',a=visibleRoster().filter(p=>(!u||p.satker===u)&&[p.nama,p.nrp,p.jabatan,p.satker].join(' ').toLowerCase().includes(q));let size=+$('pageSize').value,pages=Math.max(1,Math.ceil(a.length/size));page=Math.min(page,pages);let start=(page-1)*size;$('peopleRows').innerHTML=a.slice(start,start+size).map((p,i)=>`<tr><td>${start+i+1}</td><td>${esc(p.nrp)}</td><td><b>${esc(p.nama)}</b></td><td>${esc(p.pangkat)}</td><td>${esc(p.jabatan)}</td><td><b>${elapsedService(p.tmt)}</b><br><span class="tiny">TMT: ${fmtDate(p.tmt)}</span></td><td>${esc(p.satker)}</td><td><button class="btn select-person" onclick="selectPerson('${esc(p.nrp)}')">＋ Pilih</button> <button class="btn light" onclick="personDetail('${esc(p.nrp)}')">Detail</button> ${current?.role==='Admin Utama'?`<button class="btn light" onclick="editRosterPerson('${esc(p.nrp)}')">Edit</button> <button class="btn danger" onclick="deleteRosterPerson('${esc(p.nrp)}')">Hapus</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8">Tidak ada data ditemukan.</td></tr>';$('pageInfo').textContent=`Menampilkan ${a.length?start+1:0}–${Math.min(start+size,a.length)} dari ${a.length} personel`;$('pageNum').textContent=`Halaman ${page} / ${pages}`}
+function renderPeople(){let q=($('personSearch')?.value||'').toLowerCase(),u=$('unitFilter')?.value||'',a=visibleRoster().filter(p=>(!u||p.satker===u)&&[p.nama,p.nrp,p.jabatan,p.satker].join(' ').toLowerCase().includes(q));let size=+$('pageSize').value,pages=Math.max(1,Math.ceil(a.length/size));page=Math.min(page,pages);let start=(page-1)*size;$('peopleRows').innerHTML=a.slice(start,start+size).map((p,i)=>`<tr><td>${start+i+1}</td><td>${esc(p.nrp)}</td><td><b>${esc(p.nama)}</b></td><td>${esc(p.pangkat)}</td><td>${esc(p.jabatan)}</td><td><b>${elapsedService(p.tmt)}</b><br><span class="tiny">TMT: ${fmtDate(p.tmt)}</span></td><td>${esc(p.satker)}</td><td><button class="btn select-person" onclick="selectPerson('${esc(p.nrp)}')">＋ Pilih</button> <button class="btn light" onclick="personDetail('${esc(p.nrp)}')">Detail</button> ${isMainAdmin()?`<button class="btn light" onclick="editRosterPerson('${esc(p.nrp)}')">Edit</button> <button class="btn danger" onclick="deleteRosterPerson('${esc(p.nrp)}')">Hapus</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8">Tidak ada data ditemukan.</td></tr>';$('pageInfo').textContent=`Menampilkan ${a.length?start+1:0}–${Math.min(start+size,a.length)} dari ${a.length} personel`;$('pageNum').textContent=`Halaman ${page} / ${pages}`}
 function changePage(n){let q=($('personSearch').value||'').toLowerCase(),u=$('unitFilter').value||'',a=visibleRoster().filter(p=>(!u||p.satker===u)&&[p.nama,p.nrp,p.jabatan,p.satker].join(' ').toLowerCase().includes(q)),pages=Math.max(1,Math.ceil(a.length/+$('pageSize').value));page=Math.max(1,Math.min(pages,page+n));renderPeople()}
-function personDetail(n){let p=roster.get(n),c=components.filter(x=>x.nrp===n);if(!p)return;openModal('Detail Personel',`<div class="person-detail-grid"><strong>Nama</strong><span><b>${esc(p.nama)}</b></span><strong>NRP</strong><span>${esc(n)}</span><strong>Pangkat</strong><span>${esc(p.pangkat)}</span><strong>Jabatan</strong><span>${esc(p.jabatan)}</span><strong>TMT Jabatan</strong><span>${fmtDate(p.tmt)}</span><strong>Satuan</strong><span>${esc(p.satker)}</span><strong>Riwayat nilai</strong><span>${c.length} rekaman</span></div>${current?.role==='Admin Utama'?`<button class="btn" style="margin-top:16px" onclick="closeModal();editRosterPerson('${esc(n)}')">✎ Edit Data Personel</button>`:''}`)}
-function openRosterForm(nrp=''){if(current?.role!=='Admin Utama'){alert('Hanya Admin Utama yang dapat menambah personel.');return}let p=nrp?roster.get(String(nrp)):{};openModal(nrp?'Edit Data Personel':'Tambah Anggota',`<div class="field"><label>NRP</label><input id="rfNrp" value="${esc(p?.nrp||'')}" ${nrp?'readonly':''} placeholder="Masukkan NRP"></div><div class="field"><label>NAMA LENGKAP</label><input id="rfNama" value="${esc(p?.nama||'')}" placeholder="Nama lengkap"></div><div class="field"><label>PANGKAT</label><input id="rfPangkat" value="${esc(p?.pangkat||'')}" placeholder="Pangkat"></div><div class="field"><label>JABATAN</label><input id="rfJabatan" value="${esc(p?.jabatan||'')}" placeholder="Jabatan"></div><div class="field"><label>TMT JABATAN</label><input id="rfTmt" type="date" value="${esc(p?.tmt||'')}"></div><div class="field"><label>SATUAN / SATKER</label><input id="rfSatker" value="${esc(p?.satker||current?.unit||'')}" placeholder="Satker / Polsek"></div><button class="btn block" onclick="saveRosterForm('${esc(nrp)}')">Simpan Data Personel</button>`)}
+function personDetail(n){let p=roster.get(n),c=components.filter(x=>x.nrp===n);if(!p)return;openModal('Detail Personel',`<div class="person-detail-grid"><strong>Nama</strong><span><b>${esc(p.nama)}</b></span><strong>NRP</strong><span>${esc(n)}</span><strong>Pangkat</strong><span>${esc(p.pangkat)}</span><strong>Jabatan</strong><span>${esc(p.jabatan)}</span><strong>TMT Jabatan</strong><span>${fmtDate(p.tmt)}</span><strong>Satuan</strong><span>${esc(p.satker)}</span><strong>Riwayat nilai</strong><span>${c.length} rekaman</span></div>${isMainAdmin()?`<button class="btn" style="margin-top:16px" onclick="closeModal();editRosterPerson('${esc(n)}')">✎ Edit Data Personel</button>`:''}`)}
+function openRosterForm(nrp=''){if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat menambah personel.');return}let p=nrp?roster.get(String(nrp)):{};openModal(nrp?'Edit Data Personel':'Tambah Anggota',`<div class="field"><label>NRP</label><input id="rfNrp" value="${esc(p?.nrp||'')}" ${nrp?'readonly':''} placeholder="Masukkan NRP"></div><div class="field"><label>NAMA LENGKAP</label><input id="rfNama" value="${esc(p?.nama||'')}" placeholder="Nama lengkap"></div><div class="field"><label>PANGKAT</label><input id="rfPangkat" value="${esc(p?.pangkat||'')}" placeholder="Pangkat"></div><div class="field"><label>JABATAN</label><input id="rfJabatan" value="${esc(p?.jabatan||'')}" placeholder="Jabatan"></div><div class="field"><label>TMT JABATAN</label><input id="rfTmt" type="date" value="${esc(p?.tmt||'')}"></div><div class="field"><label>SATUAN / SATKER</label><input id="rfSatker" value="${esc(p?.satker||current?.unit||'')}" placeholder="Satker / Polsek"></div><button class="btn block" onclick="saveRosterForm('${esc(nrp)}')">Simpan Data Personel</button>`)}
 function editRosterPerson(nrp){openRosterForm(nrp)}
 async function saveRosterForm(oldNrp=''){
-  if(current?.role!=='Admin Utama')return;
+  if(!isMainAdmin())return;
   const nrp=norm($('rfNrp').value);
   const nama=norm($('rfNama').value);
   const pangkat=norm($('rfPangkat').value);
@@ -427,7 +457,7 @@ function changeAccountPage(delta){
   accountPage=Math.max(1,Math.min(pages,accountPage+delta));renderAccounts();
 }
 async function loadAccounts(){
-  if(current?.role!=='Admin Utama')return;
+  if(!isMainAdmin())return;
   try{
     const data=await accountAction({action:'list'});
     accounts=(data.accounts||[]).map(a=>({id:a.id,name:a.nama,username:a.username,role:a.role,unit:a.satker,active:a.aktif!==false}));
@@ -436,7 +466,7 @@ async function loadAccounts(){
   }catch(e){console.error(e);$('accountRows').innerHTML=`<tr><td colspan="6">Gagal memuat akun: ${esc(e.message)}</td></tr>`}
 }
 async function createAccount(){
-  if(current?.role!=='Admin Utama')return;
+  if(!isMainAdmin())return;
   const nrp=$('newOperatorNrp').value.trim(),person=roster.get(nrp),name=person?.nama||'',unit=$('newUnit').value.trim(),role=$('newRole').value;
   if(!nrp||!name||!unit){alert('Lengkapi NRP, nama operator, dan satuan.');return}
   if(!roster.has(nrp)){alert('NRP tidak ditemukan pada nominatif personel.');return}
@@ -450,12 +480,12 @@ async function createAccount(){
 }
 function copyText(t){navigator.clipboard?.writeText(t)}
 function editAccount(i){
-  if(current?.role!=='Admin Utama')return;
+  if(!isMainAdmin())return;
   const a=accounts[i];if(!a)return;
   openModal('Edit Akun',`<div class="field"><label>NAMA</label><input id="editAccountName" value="${esc(a.name||'')}"></div><div class="field"><label>USERNAME / NRP (TIDAK DAPAT DIUBAH)</label><input value="${esc(a.username||'')}" readonly></div><div class="field"><label>SATUAN INDUK</label><input id="editAccountUnit" value="${esc(a.unit||'')}" placeholder="Contoh: BAGREN / POLSEK KAMPAK"></div><div class="field"><label>PERAN</label><select id="editAccountRole"><option value="Operator Satuan" ${a.role==='Operator Satuan'?'selected':''}>Operator Satuan</option><option value="Viewer Pimpinan" ${a.role==='Viewer Pimpinan'?'selected':''}>Viewer Pimpinan</option><option value="Admin Jajaran" ${a.role==='Admin Jajaran'?'selected':''}>Admin Jajaran</option></select></div><div class="row" style="justify-content:flex-end;margin-top:15px"><button class="btn light" onclick="closeModal()">Batal</button><button class="btn" onclick="saveAccountEdit(${i})">Simpan Perubahan</button></div><p class="tiny">Perubahan satuan akan mengubah cakupan data akun sesuai pemetaan Satker. Username/NRP tetap.</p>`);
 }
 async function saveAccountEdit(i){
-  if(current?.role!=='Admin Utama')return;
+  if(!isMainAdmin())return;
   const a=accounts[i];if(!a)return;
   const nama=$('editAccountName')?.value.trim(),satker=$('editAccountUnit')?.value.trim(),role=$('editAccountRole')?.value;
   if(!nama||!satker){alert('Nama dan satuan wajib diisi.');return}
@@ -465,16 +495,16 @@ async function saveAccountEdit(i){
 }
 
 async function resetAccountPassword(i){
-  if(current?.role!=='Admin Utama')return;const a=accounts[i];if(!a||!confirm('Reset password akun '+a.username+'?'))return;
+  if(!isMainAdmin())return;const a=accounts[i];if(!a||!confirm('Reset password akun '+a.username+'?'))return;
   try{const d=await accountAction({action:'reset_password',user_id:a.id});openModal('Password Baru',`<p>Password akun <b>${esc(a.username)}</b> berhasil direset.</p><div class="credential">Username: ${esc(a.username)}<br>Password baru: ${esc(d.password)}</div><button class="btn light" onclick="copyText('${esc(a.username+' / '+d.password)}')">Salin kredensial</button>`)}catch(e){alert('Reset gagal: '+e.message)}
 }
 async function toggleAccount(i){
-  if(current?.role!=='Admin Utama')return;const a=accounts[i];if(!a)return;
+  if(!isMainAdmin())return;const a=accounts[i];if(!a)return;
   if(!confirm((a.active?'Nonaktifkan':'Aktifkan')+' akun '+a.username+'?'))return;
   try{await accountAction({action:'set_active',user_id:a.id,aktif:!a.active});await loadAccounts()}catch(e){alert('Perubahan status gagal: '+e.message)}
 }
 async function importRoster(){
-  if(current?.role!=='Admin Utama')return;
+  if(!isMainAdmin())return;
   const f=$('importFile').files[0];
   if(!f){alert('Pilih file Excel atau CSV terlebih dahulu.');return}
   const reader=new FileReader();
@@ -712,7 +742,7 @@ async function loadAssessmentWeights(){
   Object.entries(ids).forEach(([k,id])=>{if($(id))$(id).value=assessmentWeights[k]});renderWeightTotal();if($('monitorDataRows'))renderMonitoringData();
 }
 async function saveAssessmentWeights(){
-  if(current?.role!=='Admin Utama'){alert('Hanya Admin Utama yang dapat mengubah rumus penilaian.');return}
+  if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat mengubah rumus penilaian.');return}
   const weights=readAssessmentWeightsFromForm(),values=Object.values(weights),total=values.reduce((a,b)=>a+b,0);
   if(values.some(v=>!Number.isFinite(v)||v<0||v>100)){alert('Setiap bobot harus berada pada rentang 0 sampai 100.');return}
   if(Math.abs(total-100)>0.001){alert(`Total bobot saat ini ${total.toFixed(2)}%. Total wajib tepat 100%.`);return}
@@ -746,7 +776,7 @@ async function saveCombinedAssessment(isDraft=false){
   try{
     const {error}=await sb.from('penilaian').upsert({
       nrp:p.nrp,nama:p.nama,tahun:year,semester,
-      nilai_akhir:(current?.role==='Admin Utama'?calculateFinalScore(detail):null)??previous.akhir??null,catatan:JSON.stringify(detail),input_oleh:current.id
+      nilai_akhir:(isMainAdmin()?calculateFinalScore(detail):null)??previous.akhir??null,catatan:JSON.stringify(detail),input_oleh:current.id
     },{onConflict:'nrp,tahun,semester'});
     if(error)throw error;
     await loadCloudData();
@@ -802,7 +832,7 @@ function renderMoveHistory(){
 function changeMovePage(d){let q=($('moveSearch')?.value||'').toLowerCase(),rows=[...roster.values()].filter(p=>[p.nrp,p.nama,p.pangkat,p.jabatan,p.satker].join(' ').toLowerCase().includes(q)),pages=Math.max(1,Math.ceil(rows.length/Number($('movePageSize')?.value||10)));movePage=Math.max(1,Math.min(pages,movePage+d));renderMoveHistory()}
 function deleteRosterPerson(nrp){
  let p=roster.get(String(nrp));if(!p)return;
- if(current?.role!=='Admin Utama'){alert('Hanya Admin Utama yang dapat menghapus nominatif.');return}
+ if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat menghapus nominatif.');return}
  if(!confirm(`Hapus ${p.nama} (${p.nrp}) dari Daftar Nominatif Personel? Data penilaian historis tidak ikut dihapus.`))return;
  roster.delete(String(nrp));
  if(moveSelectedNrp===String(nrp)){moveSelectedNrp='';$('moveSearchNrp').value='';$('moveCurrentUnit').value='';$('movePersonInfo').innerHTML='<span class="muted">Personel telah dihapus dari nominatif.</span>'}
@@ -817,9 +847,9 @@ function exportUnitProgressWA(){
  let blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`Rekap_Progres_Satker_${period.replaceAll(' ','_')}.txt`;a.click();URL.revokeObjectURL(url);
 }
 function getMonitoringRows(){let sem=Number($('monitorSemester')?.value||2),yr=Number($('monitorYear')?.value||2026),q=($('monitorSearch')?.value||'').trim().toLowerCase(),unit=$('monitorUnit')?.value||'';let people=visibleRoster().filter(p=>(!unit||String(p.satker||'')===unit)&&(!q||[p.nrp,p.nama,p.jabatan,p.pangkat,p.satker].join(' ').toLowerCase().includes(q)));return people.map(p=>{let c=components.find(x=>String(x.nrp)===String(p.nrp)&&Number(x.semester||String(x.period||'').match(/SMT\s*(\d)/i)?.[1]||1)===sem&&Number(x.tahun||String(x.period||'').match(/(20\d{2})/)?.[1]||0)===yr)||{};return {...c,nrp:p.nrp,nama:p.nama||c.nama||'',pangkat:p.pangkat||c.pangkat||'',jabatan:p.jabatan||c.jabatan||'',satker:p.satker||c.satker||'',semester:sem,tahun:yr,jasmani:c.jasmani??null,rohani:c.rohani??null,psikologi:c.psikologi??null,kesehatan:c.kesehatan??null,catatan:c.catatan??null,sipk:c.sipk??null,akademik:c.akademik??null,akhir:calculateFinalScore(c)??c.akhir??null,belumDinilai:!Object.keys(c).length}}).sort((a,b)=>String(a.nama).localeCompare(String(b.nama)))}
-function renderMonitoringData(){let rows=getMonitoringRows(),size=Number($('monitorPageSize')?.value||30),pages=Math.max(1,Math.ceil(rows.length/size));monitorPage=Math.max(1,Math.min(monitorPage,pages));let start=(monitorPage-1)*size,shown=rows.slice(start,start+size);$('monitorDataRows').innerHTML=shown.map((c,i)=>`<tr><td>${start+i+1}</td><td>${esc(c.nrp)}</td><td>${esc(c.nama)}</td><td>${esc(c.pangkat)}</td><td>${esc(c.jabatan)}</td><td>${esc(c.satker)}</td><td>${c.semester||$('monitorSemester').value}</td><td>${c.tahun||$('monitorYear').value}</td><td>${val(c.jasmani)}</td><td>${val(c.rohani)}</td><td>${val(c.psikologi)}</td><td>${val(c.kesehatan)}</td><td>${val(c.catatan)}</td><td>${val(c.sipk)}</td><td>${val(c.akademik)}</td><td><b>${val(c.akhir)}</b></td><td>${current?.role==='Admin Utama'?`<button class="icon-edit" title="Edit nilai" aria-label="Edit nilai" onclick="editMonitoringScore('${esc(c.nrp)}',${c.semester},${c.tahun})">✎</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="17" style="text-align:center">Tidak ada personel pada filter ini.</td></tr>';$('monitorCount').textContent=`${rows.length} data ditemukan`;$('monitorPageInfo').textContent=`Menampilkan ${rows.length?start+1:0}–${Math.min(start+size,rows.length)} dari ${rows.length} data`;$('monitorPageNum').textContent=`Halaman ${monitorPage} / ${pages}`}
+function renderMonitoringData(){let rows=getMonitoringRows(),size=Number($('monitorPageSize')?.value||30),pages=Math.max(1,Math.ceil(rows.length/size));monitorPage=Math.max(1,Math.min(monitorPage,pages));let start=(monitorPage-1)*size,shown=rows.slice(start,start+size);$('monitorDataRows').innerHTML=shown.map((c,i)=>`<tr><td>${start+i+1}</td><td>${esc(c.nrp)}</td><td>${esc(c.nama)}</td><td>${esc(c.pangkat)}</td><td>${esc(c.jabatan)}</td><td>${esc(c.satker)}</td><td>${c.semester||$('monitorSemester').value}</td><td>${c.tahun||$('monitorYear').value}</td><td>${val(c.jasmani)}</td><td>${val(c.rohani)}</td><td>${val(c.psikologi)}</td><td>${val(c.kesehatan)}</td><td>${val(c.catatan)}</td><td>${val(c.sipk)}</td><td>${val(c.akademik)}</td><td><b>${val(c.akhir)}</b></td><td>${isMainAdmin()?`<button class="icon-edit" title="Edit nilai" aria-label="Edit nilai" onclick="editMonitoringScore('${esc(c.nrp)}',${c.semester},${c.tahun})">✎</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="17" style="text-align:center">Tidak ada personel pada filter ini.</td></tr>';$('monitorCount').textContent=`${rows.length} data ditemukan`;$('monitorPageInfo').textContent=`Menampilkan ${rows.length?start+1:0}–${Math.min(start+size,rows.length)} dari ${rows.length} data`;$('monitorPageNum').textContent=`Halaman ${monitorPage} / ${pages}`}
 function editMonitoringScore(nrp,semester,tahun){
-  if(current?.role!=='Admin Utama'){alert('Hanya Admin Utama yang dapat mengubah nilai.');return}
+  if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat mengubah nilai.');return}
   let c=components.find(x=>String(x.nrp)===String(nrp)&&Number(x.semester)===Number(semester)&&Number(x.tahun)===Number(tahun))||{};
   let p=roster.get(String(nrp));if(!p)return;
   let fields=[['Jasmani','jasmani'],['Rohani','rohani'],['Psikologi','psikologi'],['Kesehatan','kesehatan'],['Catatan Personil','catatan'],['SIPK','sipk'],['Akademik','akademik']];
@@ -828,7 +858,7 @@ function editMonitoringScore(nrp,semester,tahun){
   <div class="row" style="justify-content:flex-end"><button class="btn light" onclick="closeModal()">Batal</button><button class="btn" onclick="saveMonitoringScore('${esc(nrp)}',${semester},${tahun})">Simpan Koreksi</button></div>`);
 }
 async function saveMonitoringScore(nrp,semester,tahun){
-  if(current?.role!=='Admin Utama')return;
+  if(!isMainAdmin())return;
   let keys=['jasmani','rohani','psikologi','kesehatan','catatan','sipk','akademik'],detail={};
   for(let k of keys){let raw=$('monEdit_'+k).value;if(raw!==''){let n=Number(raw);if(!Number.isFinite(n)||n<0||n>100){alert('Nilai '+k.toUpperCase()+' harus 0–100.');return}detail[k]=n}}
   let old=components.find(x=>String(x.nrp)===String(nrp)&&Number(x.semester)===Number(semester)&&Number(x.tahun)===Number(tahun))||{};
@@ -863,7 +893,7 @@ async function loadMutationRequests(){
    .order('created_at',{ascending:false}).limit(250);
   if(error)throw error;
   mutationRequests=data||[];
-  const isAdmin=current.role==='Admin Utama';
+  const isAdmin=isMainAdmin();
   // Satu panel dipakai bersama, tetapi isi dan kewenangannya dipisahkan tegas menurut role.
   // Admin Utama hanya menerima antrean PENDING; Operator hanya melihat pengajuan miliknya.
   const requestPanel=$('mutationRequestsPanel');
@@ -898,7 +928,7 @@ async function loadMutationRequests(){
  }catch(e){
   console.error('Gagal memuat permohonan mutasi:',e);
   body.innerHTML=`<tr><td colspan="6">Gagal memuat pengajuan: ${esc(e.message||'Kesalahan akses tabel permohonan_mutasi')}</td></tr>`;
-  const navBadge=$('mutationNavBadge');if(navBadge&&current.role==='Admin Utama'){navBadge.classList.remove('hidden');navBadge.textContent='!';navBadge.title='Gagal membaca pengajuan. Periksa kebijakan RLS Supabase.';}
+  const navBadge=$('mutationNavBadge');if(navBadge&&isMainAdmin()){navBadge.classList.remove('hidden');navBadge.textContent='!';navBadge.title='Gagal membaca pengajuan. Periksa kebijakan RLS Supabase.';}
  }
 }
 function mutationNote(id){
@@ -908,7 +938,7 @@ function mutationNote(id){
  decideMutation(id,'APPROVED',note,true);
 }
 async function decideMutation(id,decision,note='',fromNote=false){
- if(current?.role!=='Admin Utama'){alert('Hanya Admin Utama yang dapat memutuskan.');return}
+ if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat memutuskan.');return}
  const x=mutationRequests.find(a=>a.id===id);if(!x)return;
  if(!fromNote){
   const action=decision==='APPROVED'?'MENERIMA':'MENOLAK';
@@ -930,7 +960,7 @@ async function movePersonUnit(){
  if(!p){alert('Cari dan CEK NRP personel terlebih dahulu.');return}
  if(!unit||!jabatanTujuan){alert('Satuan dan jabatan tujuan wajib diisi.');return}
  if(unit.toUpperCase()===p.satker.toUpperCase()&&jabatanTujuan.toUpperCase()===String(p.jabatan||'').toUpperCase()){alert('Satuan dan jabatan tujuan sama dengan data saat ini.');return}
- const isoDate=new Date().toISOString().slice(0,10),isAdmin=current?.role==='Admin Utama';
+ const isoDate=new Date().toISOString().slice(0,10),isAdmin=isMainAdmin();
  moveSubmitting=true;const submitButton=document.querySelector('button[onclick="movePersonUnit()"]');if(submitButton){submitButton.disabled=true;submitButton.textContent='Menyimpan...';}
  try{
   // SQL yang sudah dijalankan memakai satu RPC untuk kedua role.
