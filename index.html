@@ -68,6 +68,7 @@
 <div class="navlabel">MONITORING</div>
 
 <div class="nav" data-page="monitoringdata"><i>▥</i>Monitoring Data Penilaian</div>
+<div class="nav adminonly" data-page="activeusers"><i>◉</i>Pengguna Login Aktif</div>
 <div class="nav adminonly" data-page="bobot"><i>％</i>Form Rumus Penilaian</div>
 <div class="navlabel">ADMINISTRASI</div>
 <div class="nav adminonly" data-page="akun"><i>♧</i>Akun Jajaran</div>
@@ -77,11 +78,20 @@
 <section id="dash">
 <div class="dashboard-hero"><div><div class="eyebrow">PUSAT KENDALI DATA SDM</div><h1>Dashboard SDM Budaya Unggul</h1><p>Ringkasan pekerjaan operator, progres penilaian, dan kondisi data personel Polres Trenggalek.</p></div><div class="dashboard-period"><span>PERIODE AKTIF</span><b id="periodLabel">SMT II 2026</b><small id="dashboardToday">—</small></div></div>
 <div class="grid dashboard-stats" id="stats"></div>
-<div class="panel hidden" id="activeUsersPanel" style="margin-bottom:15px"><div class="ph"><h2>Pengguna Login Aktif</h2><span class="pill green" id="activeUsersCount">0 aktif</span></div><div id="activeUsersList" class="tiny">Memuat status login…</div><div class="tiny muted" style="margin-top:8px">Status aktif diperbarui otomatis. Pengguna dianggap aktif jika ada aktivitas dalam 2 menit terakhir.</div></div>
 <div class="dashboard-columns">
 <div class="panel"><div class="ph"><h2>Rekap Progres Penilaian Periode Aktif per Satuan</h2><div class="row" style="flex-wrap:wrap;justify-content:flex-end"><label class="tiny" for="dashboardProgressType">Jenis progres</label><select id="dashboardProgressType" aria-label="Pilih jenis progres" onchange="dashboardUnitPage=1;renderDashboardProgress()"><option value="all">Seluruh Penilaian</option><option value="rohani">E-Rohani</option><option value="mental">E-Mental</option><option value="tkj">TKJ</option></select><span class="pill blue" id="dashboardProgressLabel">0%</span><button class="btn light" onclick="exportUnitProgressWA()">⬇ Unduh Rekap WA (.txt)</button></div></div><div class="progress-track"><div id="dashboardProgressBar" class="progress-fill"></div></div><div class="progress-meta"><span id="dashboardScored">0 personel sudah dinilai</span><span id="dashboardUnscored">0 belum dinilai</span></div><div class="row" style="justify-content:flex-end;margin:8px 0"><label class="muted">Tampilkan</label><select id="dashboardUnitPageSize" onchange="dashboardUnitPage=1;renderDashboardUnitProgress()"><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option></select><span class="muted">satuan</span></div><div id="dashboardUnitProgress" class="unit-progress-list"></div><div class="pager"><span class="tiny" id="dashboardUnitPageInfo"></span><div class="row"><button class="btn light" onclick="changeDashboardUnitPage(-1)">Sebelumnya</button><span class="tiny" id="dashboardUnitPageNum"></span><button class="btn light" onclick="changeDashboardUnitPage(1)">Berikutnya</button></div></div></div>
 <div class="panel dashboard-guide"><div class="ph"><h2>Panel Petunjuk Operator</h2><span class="pill">Panduan kerja</span></div><div class="guide-item"><b>01 · Periksa nominatif</b><span>Pastikan personel dan satuan sudah benar sebelum menginput penilaian.</span></div><div class="guide-item"><b>02 · Input nilai</b><span>Gunakan Form Penilaian untuk mengisi nilai berdasarkan NRP, tahun, dan semester.</span></div><div class="guide-item"><b>03 · Catatan personel</b><span>Catat status dan keterangan personel melalui Form Catpers.</span></div><div class="guide-item"><b>04 · Pantau hasil</b><span>Periksa Monitoring Data Penilaian dan unduh laporan bila diperlukan.</span></div></div></div>
 <div class="panel"><div class="ph"><h2>Akses Cepat</h2><span class="tiny">Pilih menu sesuai tugas operator</span></div><div class="quick-actions"><button class="quick-action" onclick="go('formpenilaian')"><span>▤</span><b>Form Penilaian</b><small>Input nilai 6 komponen</small></button><button class="quick-action" onclick="go('formcatpers')"><span>▧</span><b>Form Catpers</b><small>Catatan personel</small></button><button class="quick-action" onclick="go('nominatif')"><span>♙</span><b>Nominatif</b><small>Data induk personel</small></button><button class="quick-action" onclick="go('monitoringdata')"><span>▥</span><b>Monitoring</b><small>Rekap dan laporan</small></button></div></div>
+</section>
+<section id="activeusers" class="hidden">
+<div class="eyebrow">MONITORING AKUN</div>
+<h1>Pengguna Login Aktif</h1>
+<p class="muted" style="margin-top:-6px;margin-bottom:18px">Pantau pengguna yang sedang mengakses aplikasi SDM Budaya Unggul secara real-time.</p>
+<div class="panel" id="activeUsersPanel">
+<div class="ph"><div><h2>Daftar Pengguna Aktif</h2><div class="tiny muted">Pengguna dianggap aktif jika terdapat aktivitas dalam 2 menit terakhir.</div></div><span class="pill green" id="activeUsersCount">0 aktif</span></div>
+<div id="activeUsersList" class="tiny">Memuat status login…</div>
+<div class="tiny muted" style="margin-top:12px">Data diperbarui otomatis setiap 30 detik.</div>
+</div>
 </section>
 <section id="formpenilaian" class="hidden">
 <div class="eyebrow">PENILAIAN PERSONEL</div>
@@ -369,7 +379,7 @@ async function logout(){
   $('appScreen').classList.add('hidden'); $('loginScreen').classList.remove('hidden');
   $('loginPass').value=''; $('loginError').textContent='';
 }
-function go(id){if(id==='bobot'&&!isMainAdmin()){alert('Menu Form Rumus Penilaian hanya dapat diakses Admin Utama.');return}const target=$(id);if(!target)return;document.querySelectorAll('.wrap section').forEach(x=>x.classList.add('hidden'));target.classList.remove('hidden');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));if(current)localStorage.setItem('sdm_budaya_unggul_last_page',id);if((id==='formpenilaian'||id==='formcatpers')&&$('assessmentDate')&&!$('assessmentDate').value){let d=new Date();$('assessmentDate').value=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}renderAll()}
+function go(id){if((id==='bobot'||id==='activeusers')&&!isMainAdmin()){alert('Menu ini hanya dapat diakses Admin Utama.');return}const target=$(id);if(!target)return;document.querySelectorAll('.wrap section').forEach(x=>x.classList.add('hidden'));target.classList.remove('hidden');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));if(current)localStorage.setItem('sdm_budaya_unggul_last_page',id);if(id==='activeusers')refreshActiveUsers();if((id==='formpenilaian'||id==='formcatpers')&&$('assessmentDate')&&!$('assessmentDate').value){let d=new Date();$('assessmentDate').value=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}renderAll()}
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.page));
 document.querySelectorAll('#bobot input').forEach(el=>el.addEventListener('input',renderWeightTotal));
 function dashboardProgressConfig(){let type=$('dashboardProgressType')?.value||'all';let cfg={all:{label:'Seluruh Penilaian',field:null},rohani:{label:'E-Rohani',field:'rohani'},mental:{label:'E-Mental',field:'psikologi'},tkj:{label:'TKJ',field:'jasmani'}};return cfg[type]||cfg.all}
