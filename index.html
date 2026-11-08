@@ -388,7 +388,7 @@ function sortSatkerNames(values){let unique=[...new Set(values.filter(Boolean).m
 const PANGKAT_DISPLAY_ORDER=['AKBP','KOMPOL','AKP','AIPTU','AIPDA','BRIPKA','BRIGPOL','BRIGADIR','BRIPTU','BRIPDA'];
 function pangkatOrderKey(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 function pangkatOrderRank(value){let key=pangkatOrderKey(value),i=PANGKAT_DISPLAY_ORDER.findIndex(v=>pangkatOrderKey(v)===key);return i<0?999:i}
-function comparePersonelPangkat(a,b){return pangkatOrderRank(a.pangkat)-pangkatOrderRank(b.pangkat)||satkerOrderKey(a.satker).localeCompare(satkerOrderKey(b.satker),'id')||String(a.nama||'').localeCompare(String(b.nama||''),'id')}
+function satkerOrderRank(value){let key=satkerOrderKey(value),i=SATKER_DISPLAY_ORDER.findIndex(v=>satkerOrderKey(v)===key);return i<0?999:i} function comparePersonelPangkat(a,b){return satkerOrderRank(a.satker)-satkerOrderRank(b.satker)||pangkatOrderRank(a.pangkat)-pangkatOrderRank(b.pangkat)||String(a.nama||'').localeCompare(String(b.nama||''),'id')}
 function sortPersonelByPangkat(values){return [...values].sort(comparePersonelPangkat)}
 
 function dashboardProgressConfig(){let type=$('dashboardProgressType')?.value||'all';let cfg={all:{label:'Seluruh Penilaian',field:null},rohani:{label:'E-Rohani',field:'rohani'},mental:{label:'E-Mental',field:'psikologi'},tkj:{label:'TKJ',field:'jasmani'}};return cfg[type]||cfg.all}
