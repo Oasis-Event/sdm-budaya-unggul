@@ -124,8 +124,8 @@
       <div class="field"><label>NILAI ROHANI</label><input id="scoreRohani" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Rohani"></div>
       <div class="field"><label>NILAI PSIKOLOGI</label><input id="scorePsikologi" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Psikologi"></div>
       <div class="field"><label>NILAI KESEHATAN</label><input id="scoreKesehatan" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Kesehatan"></div>
-      <div class="field"><label>NILAI AKADEMIK</label><input id="scoreAkademik" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Akademik"></div>
-      <div class="field"><label>NILAI JASMANI</label><input id="scoreJasmani" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Jasmani"></div>
+      <div class="field"><label>PENDIDIKAN / PRESTASI AKADEMIK (TAMBAHAN NILAI)</label><select id="scoreAkademik"><option value="">Pilih pendidikan / prestasi</option><option value="6">Sespimti / Lemhanas / Sesko TNI / PKN I / S3 Dinas Disetarakan (+6)</option><option value="5">Sespimmen / Sesko Angkatan / PKN II / Sub Spesialis / S2 Dinas Disetarakan / S3 Dinas / S3 Non Dinas Linier (+5)</option><option value="4">S2 Dinas / S3 Non Dinas (+4)</option><option value="3">PTIK / Sespimma / PKA / Spesial / S2 Non Dinas Linier (+3)</option><option value="2">Pendidikan S2 Non Dinas (+2)</option><option value="1">AKPOL / SIPSS / SIP / PAG (+1)</option><option value="0">SMA / SMK Derajat (0)</option></select><div class="tiny">Nilai dasar akademik 75, ditambah nilai sesuai pendidikan/prestasi. Nilai ini bersifat statis.</div></div>
+      <div class="field"><label>NILAI JASMANI</label><input id="scoreJasmani" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Jasmani"></div><div class="field"><label><input id="bonusKesjasIdeal" type="checkbox" style="width:auto;margin-right:8px"> Bonus Kesjas +2 (Baik dan bobot badan ideal)</label><div class="tiny">Centang hanya apabila kedua syarat pada simulasi terpenuhi.</div></div>
       <div class="field"><label>NILAI SIPK</label><input id="scoreSipk" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai SIPK"></div>
     </div>
     <div class="row" style="gap:10px;flex-wrap:wrap"><button class="btn light" type="button" onclick="saveCombinedAssessment(true)">SIMPAN SEMENTARA</button><button class="btn block" type="button" onclick="saveCombinedAssessment(false)">SIMPAN PENILAIAN</button></div>
@@ -144,14 +144,15 @@
 <section id="rankingtrenggalek" class="hidden"><div class="eyebrow">DATA RANKING LOKAL</div><h1>Ranking Personel Polres Trenggalek</h1><p class="desc">Peringkat personel hanya dihitung dari nominatif Polres Trenggalek, termasuk Bag, Sat, Sie, dan Polsek jajaran.</p><div class="panel"><div class="ph"><h2>Filter ranking lokal</h2><div class="row"><select id="rankLocalCategory"><option value="akhir">Nilai Akhir</option><option value="jasmani">Jasmani</option><option value="rohani">Rohani</option><option value="psikologi">Psikologi</option></select><select id="rankLocalPeriod"><option>SMT II 2026</option><option>SMT I 2027</option></select><select id="rankLocalUnit"><option value="">Semua satuan Polres Trenggalek</option></select><button class="btn" onclick="renderLocalRanking()">Tampilkan</button></div></div><div class="tablewrap"><table><thead><tr><th>PERINGKAT</th><th>NAMA LENGKAP</th><th>NRP</th><th>PANGKAT</th><th>JABATAN</th><th>SATKER</th><th>NILAI</th></tr></thead><tbody id="rankLocalRows"></tbody></table></div><div class="footer">Ranking bersifat lokal Polres Trenggalek. Personel tanpa nilai pada kategori/periode yang dipilih tidak diberi peringkat.</div></div></section>
 
 <section id="monitoringdata" class="hidden"><div class="eyebrow">MONITORING & LAPORAN</div><h1>Monitoring Data Penilaian</h1><p class="desc">Rekap data penilaian personel dengan susunan kolom mengikuti file Monitoring Data Penilaian 13 Komponen.</p><div class="panel"><div class="ph"><h2>Filter data monitoring</h2><div class="row"><select id="monitorSemester" onchange="monitorPage=1;renderMonitoringData()"><option value="1">Semester I</option><option value="2" selected>Semester II</option></select><input id="monitorYear" type="number" value="2026" style="width:105px" onchange="monitorPage=1;renderMonitoringData()"><select id="monitorUnit" onchange="monitorPage=1;renderMonitoringData()"><option value="">Semua satuan</option></select><input id="monitorSearch" class="search" placeholder="Cari NRP / nama / jabatan" oninput="monitorPage=1;renderMonitoringData()"></div></div><div class="row" style="margin-bottom:13px"><button class="btn" onclick="exportMonitoringExcel()">⬇ Unduh Excel</button><button class="btn light" onclick="printMonitoring()">🖨 Cetak / Simpan PDF</button><span class="tiny" id="monitorCount"></span><div class="row monitor-pagination"><label class="muted">Tampilkan</label><select id="monitorPageSize" onchange="monitorPage=1;renderMonitoringData()"><option>10</option><option>20</option><option selected>30</option><option>50</option><option>100</option></select><span class="muted">data</span></div></div><div class="tablewrap"><table id="monitoringTable"><thead><tr><th>NO</th><th>NRP</th><th>NAMA LENGKAP</th><th>PANGKAT</th><th>JABATAN</th><th>SATKER</th><th>SEMESTER</th><th>TAHUN</th><th>JASMANI</th><th>ROHANI</th><th>PSIKOLOGI</th><th>KESEHATAN</th><th>CATATAN PERSONIL</th><th>SIPK</th><th>AKADEMIK</th><th>NILAI AKHIR</th><th>AKSI</th></tr></thead><tbody id="monitorDataRows"></tbody></table></div><div class="pager"><span class="tiny" id="monitorPageInfo"></span><div class="row"><button class="btn light" onclick="changeMonitorPage(-1)">Sebelumnya</button><span id="monitorPageNum" class="tiny"></span><button class="btn light" onclick="changeMonitorPage(1)">Berikutnya</button></div></div><div class="footer">Laporan cetak/PDF menampilkan logo Tri Brata pada kop laporan. Excel digunakan untuk pengolahan data lebih lanjut.</div></div></section>
-<section id="bobot" class="hidden adminonly"><div class="eyebrow">MONITORING · ADMIN UTAMA</div><h1>Form Rumus Penilaian</h1><p class="desc">Atur persentase bobot komponen untuk perhitungan Nilai Akhir. Perubahan hanya dapat dilakukan oleh Admin Utama.</p><div class="panel"><div class="ph"><h2>Pengaturan Bobot Nilai Akhir</h2><span class="pill blue">Total harus 100%</span></div><p class="muted">Catatan Personil/Catpers bersifat keterangan dan tidak masuk perhitungan angka.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
-<div class="field"><label>BOBOT JASMANI (%)</label><input id="weightJasmani" type="number" min="0" max="100" step="0.01" value="20"></div>
-<div class="field"><label>BOBOT ROHANI (%)</label><input id="weightRohani" type="number" min="0" max="100" step="0.01" value="20"></div>
-<div class="field"><label>BOBOT PSIKOLOGI (%)</label><input id="weightPsikologi" type="number" min="0" max="100" step="0.01" value="15"></div>
-<div class="field"><label>BOBOT KESEHATAN (%)</label><input id="weightKesehatan" type="number" min="0" max="100" step="0.01" value="15"></div>
-<div class="field"><label>BOBOT SIPK (%)</label><input id="weightSipk" type="number" min="0" max="100" step="0.01" value="15"></div>
-<div class="field"><label>BOBOT AKADEMIK (%)</label><input id="weightAkademik" type="number" min="0" max="100" step="0.01" value="15"></div>
-</div><div class="row" style="justify-content:space-between;margin-top:14px"><b id="weightTotal">Total bobot: 100%</b><button class="btn" onclick="saveAssessmentWeights()">Simpan Rumus</button></div><div class="footer">Nilai Akhir dihitung dengan rumus jumlah (nilai komponen × bobot) dibagi 100. Perhitungan dilakukan jika keenam komponen numerik telah terisi.</div><div id="weightMessage" class="tiny" style="margin-top:8px"></div></div></section>
+<section id="bobot" class="hidden adminonly"><div class="eyebrow">MONITORING · ADMIN UTAMA</div><h1>Form Rumus Penilaian</h1><p class="desc">Atur persentase bobot komponen untuk perhitungan Nilai Akhir. Perubahan hanya dapat dilakukan oleh Admin Utama.</p><div class="panel"><div class="ph"><h2>Pengaturan Bobot Nilai Akhir</h2><span class="pill blue">Total harus 100%</span></div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+<div class="field"><label>BOBOT SIPK / SMK (%)</label><input id="weightSipk" type="number" min="0" max="100" step="0.01" value="50"></div>
+<div class="field"><label>BOBOT CATPERS (%)</label><input id="weightCatpers" type="number" min="0" max="100" step="0.01" value="25"></div>
+<div class="field"><label>BOBOT KESEHATAN (%)</label><input id="weightKesehatan" type="number" min="0" max="100" step="0.01" value="5"></div>
+<div class="field"><label>BOBOT JASMANI / KESJAS (%)</label><input id="weightJasmani" type="number" min="0" max="100" step="0.01" value="5"></div>
+<div class="field"><label>BOBOT ROHANI / BINROH (%)</label><input id="weightRohani" type="number" min="0" max="100" step="0.01" value="5"></div>
+<div class="field"><label>BOBOT PSIKOLOGI (%)</label><input id="weightPsikologi" type="number" min="0" max="100" step="0.01" value="5"></div>
+<div class="field"><label>BOBOT AKADEMIK (%)</label><input id="weightAkademik" type="number" min="0" max="100" step="0.01" value="5"></div>
+</div><div class="row" style="justify-content:space-between;margin-top:14px"><b id="weightTotal">Total bobot: 100%</b><button class="btn" onclick="saveAssessmentWeights()">Simpan Rumus</button></div><div class="footer">Nilai Akhir merupakan penjumlahan kontribusi 7 komponen sesuai bobot. Catpers dihitung dari (75 + skor Catpers) × bobot Catpers; Akademik dihitung dari (75 + tambahan nilai pendidikan) × bobot Akademik. Komponen lain menggunakan nilai input × bobot.</div><div id="weightMessage" class="tiny" style="margin-top:8px"></div></div></section>
 <section id="nominatif" class="hidden"><div class="eyebrow">DATABASE INDUK</div><h1>Daftar Nominatif Personel</h1><p class="desc">Kelola data induk personel: tambah anggota, edit detail, import, dan ekspor nominatif.</p><div class="panel"><div class="ph"><h2>Import nominatif</h2><div class="row adminonly"><input type="file" id="importFile" accept=".xlsx,.xls,.csv"><button class="btn" onclick="importRoster()">Import Excel</button><button class="btn light" onclick="exportRoster()">Export Excel</button><button class="btn light" onclick="downloadTemplate()">Unduh Template</button><button class="btn adminonly" onclick="openRosterForm()">＋ Tambah Anggota</button></div></div><div class="hint">NRP dipakai sebagai kunci agar tidak terjadi duplikasi. Masa dinas jabatan dihitung otomatis berdasarkan TMT jabatan; apabila TMT belum tersedia, aplikasi menggunakan durasi pada data nominatif sebagai dasar awal.</div><div class="ph" style="margin-top:15px"><h2>Daftar nominatif personel</h2><div class="row"><input class="search" id="personSearch" placeholder="Cari nama / NRP / jabatan" oninput="page=1;renderPeople()"><select id="unitFilter" onchange="page=1;renderPeople()"><option value="">Semua satuan</option></select><label class="muted">Tampilkan</label><select id="pageSize" onchange="page=1;renderPeople()"><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option></select><span class="muted">data</span></div></div><div class="tablewrap"><table><thead><tr><th>NO</th><th>NRP</th><th>NAMA</th><th>PANGKAT</th><th>JABATAN</th><th>MASA DINAS JABATAN / TMT</th><th>SATUAN AKTIF</th><th>AKSI</th></tr></thead><tbody id="peopleRows"></tbody></table></div><div class="pager"><span class="tiny" id="pageInfo"></span><div class="row"><button class="btn light" onclick="changePage(-1)">Sebelumnya</button><span id="pageNum" class="tiny"></span><button class="btn light" onclick="changePage(1)">Berikutnya</button></div></div></div></section>
 <section id="komponen" class="hidden"><div class="eyebrow">REKAP TERINTEGRASI</div><h1>Penilaian 13 Komponen</h1><p class="desc">Nilai dari E-Rohani, E-Emental, dan TKJ mengisi komponen terkait otomatis.</p><div class="panel"><div class="ph"><h2>Rekap penilaian</h2><div class="row"><input class="search" id="compSearch" placeholder="Cari personel..." oninput="renderComponents()"><select id="compPeriod" onchange="renderAll()"><option>SMT II 2026</option><option>SMT I 2027</option></select></div></div><div class="tablewrap"><table><thead><tr><th>NRP</th><th>NAMA</th><th>JASMANI</th><th>ROHANI</th><th>PSIKOLOGI</th><th>KESEHATAN</th><th>CATATAN PERSONIL</th><th>SIPK</th><th>AKADEMIK</th><th>NILAI AKHIR</th></tr></thead><tbody id="compRows"></tbody></table></div></div></section>
 <section id="erohani" class="hidden"><div class="eyebrow">INPUT PENILAIAN</div><h1>Penilaian E-Rohani</h1><div class="panel"><div class="field"><label>PERSONEL</label><select id="erPerson"></select></div><div class="grid"><div class="field"><label>NRS</label><input id="erNrs" type="number"></div><div class="field"><label>NPA</label><input id="erNpa" type="number"></div><div class="field"><label>NSP</label><input id="erNsp" type="number"></div><div class="field"><label>Nilai akhir</label><input id="erFinal" type="number"></div></div><button class="btn" onclick="saveAssessment('er')">Simpan & sinkron ke Rohani</button></div></section>
@@ -636,9 +637,9 @@ function renderLocalRanking(){let cat=$('rankLocalCategory').value,period=$('ran
 function openManualForm(category){openModal('Penilaian '+category,'<p>Form '+category+' disiapkan mengikuti format resmi SDM Budaya Unggul.</p><p>Field dan indikator rinci akan disesuaikan dengan ketentuan yang Anda gunakan.</p>')}
 const CATPERS_RULES={no_record:{label:'Tidak memiliki catatan personel',score:5},not_proven:{label:'Memiliki catatan, tidak terbukti bersalah',score:5},proven_done:{label:'Terbukti bersalah, sudah selesai',score:-3},proven_pending:{label:'Terbukti bersalah, belum selesai',score:-5}};
 function catpersRule(status){if(CATPERS_RULES[status])return CATPERS_RULES[status];const legacy=String(status||'').toLowerCase();if(legacy==='tidak ada')return CATPERS_RULES.no_record;if(legacy==='ada')return {label:'Status lama—perlu diklasifikasikan ulang',score:0};return {label:'Status belum diklasifikasikan',score:0}}
-function catpersValue(status){const rule=catpersRule(status);return Number((75+rule.score*0.25).toFixed(2))}
-function previewCatpersScore(){const status=$('catStatus')?.value||'no_record',rule=catpersRule(status),value=catpersValue(status);if($('catScorePreview'))$('catScorePreview').textContent=`Nilai dasar 75 · Skor ${rule.score>0?'+':''}${rule.score} · Nilai Catpers ${value.toFixed(2).replace('.',',')}`}
-function renderCatpersHistory(){const el=$('catList');if(!el)return;const rows=catpersRecords.slice().sort((a,b)=>b.tahun-a.tahun||b.semester-a.semester||String(a.nama).localeCompare(String(b.nama),'id'));el.innerHTML=rows.length?`<div class="tablewrap"><table><thead><tr><th>NRP</th><th>NAMA</th><th>PERIODE</th><th>STATUS CATPERS</th><th>SKOR</th><th>NILAI CATPERS</th><th>KETERANGAN</th></tr></thead><tbody>${rows.map(c=>{const r=catpersRule(c.status);return `<tr><td>${esc(c.nrp)}</td><td>${esc(c.nama)}</td><td>${esc(c.period)}</td><td>${esc(r.label)}</td><td>${r.score>0?'+':''}${r.score}</td><td><b>${catpersValue(c.status).toFixed(2).replace('.',',')}</b></td><td>${esc(c.note||'—')}</td></tr>`}).join('')}</tbody></table></div>`:'Belum ada riwayat Catpers.'}
+function catpersValue(status){const rule=catpersRule(status);return Number(((75+rule.score)*0.25).toFixed(2))}
+function previewCatpersScore(){const status=$('catStatus')?.value||'no_record',rule=catpersRule(status),value=catpersValue(status);if($('catScorePreview'))$('catScorePreview').textContent=`(${75+rule.score}) × 25% · Skor ${rule.score>0?'+':''}${rule.score} · Kontribusi Catpers ${value.toFixed(2).replace('.',',')}`}
+function renderCatpersHistory(){const el=$('catList');if(!el)return;const rows=catpersRecords.slice().sort((a,b)=>b.tahun-a.tahun||b.semester-a.semester||String(a.nama).localeCompare(String(b.nama),'id'));el.innerHTML=rows.length?`<div class="tablewrap"><table><thead><tr><th>NRP</th><th>NAMA</th><th>PERIODE</th><th>STATUS CATPERS</th><th>SKOR</th><th>KONTRIBUSI CATPERS (25%)</th><th>KETERANGAN</th></tr></thead><tbody>${rows.map(c=>{const r=catpersRule(c.status);return `<tr><td>${esc(c.nrp)}</td><td>${esc(c.nama)}</td><td>${esc(c.period)}</td><td>${esc(r.label)}</td><td>${r.score>0?'+':''}${r.score}</td><td><b>${catpersValue(c.status).toFixed(2).replace('.',',')}</b></td><td>${esc(c.note||'—')}</td></tr>`}).join('')}</tbody></table></div>`:'Belum ada riwayat Catpers.'}
 async function saveCatpers(){
   if(!catpersPersonNrp){alert('Pilih personel terlebih dahulu melalui LIST PERSONEL atau pencarian NRP.');return}
   const p=roster.get(String(catpersPersonNrp));if(!p)return alert('Data personel tidak ditemukan.');
@@ -704,7 +705,7 @@ function clearAssessmentPerson(){
   toggleAssessmentClear();
 }
 function clearAssessmentScoreInputs(){
-  ['scoreRohani','scorePsikologi','scoreKesehatan','scoreAkademik','scoreJasmani','scoreSipk'].forEach(id=>{if($(id))$(id).value=''});
+  ['scoreRohani','scorePsikologi','scoreKesehatan','scoreAkademik','scoreJasmani','scoreSipk'].forEach(id=>{if($(id))$(id).value=''});if($('bonusKesjasIdeal'))$('bonusKesjasIdeal').checked=false;
 }
 function reloadAssessmentValues(){
   if(assessmentPersonNrp){
@@ -747,22 +748,43 @@ function checkAssessmentPerson(){
   renderAssessmentPerson(p);
   loadAssessmentValues(p);
 }
-const DEFAULT_ASSESSMENT_WEIGHTS={jasmani:20,rohani:20,psikologi:15,kesehatan:15,sipk:15,akademik:15};
+const DEFAULT_ASSESSMENT_WEIGHTS={sipk:50,catpers:25,kesehatan:5,jasmani:5,rohani:5,psikologi:5,akademik:5};
 let assessmentWeights={...DEFAULT_ASSESSMENT_WEIGHTS};
-function readAssessmentWeightsFromForm(){return {jasmani:Number($('weightJasmani').value),rohani:Number($('weightRohani').value),psikologi:Number($('weightPsikologi').value),kesehatan:Number($('weightKesehatan').value),sipk:Number($('weightSipk').value),akademik:Number($('weightAkademik').value)}}
+function readAssessmentWeightsFromForm(){return {sipk:Number($('weightSipk').value),catpers:Number($('weightCatpers').value),kesehatan:Number($('weightKesehatan').value),jasmani:Number($('weightJasmani').value),rohani:Number($('weightRohani').value),psikologi:Number($('weightPsikologi').value),akademik:Number($('weightAkademik').value)}}
 function renderWeightTotal(){
-  const vals=['weightJasmani','weightRohani','weightPsikologi','weightKesehatan','weightSipk','weightAkademik'].map(id=>Number($(id)?.value||0)),total=vals.reduce((a,b)=>a+b,0);
+  const vals=['weightSipk','weightCatpers','weightKesehatan','weightJasmani','weightRohani','weightPsikologi','weightAkademik'].map(id=>Number($(id)?.value||0)),total=vals.reduce((a,b)=>a+b,0);
   if($('weightTotal')){$('weightTotal').textContent=`Total bobot: ${Number(total.toFixed(2))}%`;$('weightTotal').style.color=Math.abs(total-100)<0.001?'#187a55':'#b45309'}
 }
+function getCatpersRuleForPeriod(nrp,year,semester){
+  const row=catpersRecords.find(x=>String(x.nrp)===String(nrp)&&Number(x.tahun)===Number(year)&&Number(x.semester)===Number(semester));
+  return row?catpersRule(row.status):CATPERS_RULES.no_record;
+}
 function calculateFinalScore(detail){
-  const keys=['jasmani','rohani','psikologi','kesehatan','sipk','akademik'];
-  if(!keys.every(k=>detail[k]!==undefined&&detail[k]!==null&&detail[k]!==''))return null;
-  return Number(keys.reduce((sum,k)=>sum+Number(detail[k])*Number(assessmentWeights[k]||0)/100,0).toFixed(2));
+  const directKeys=['jasmani','rohani','psikologi','kesehatan','sipk'];
+  if(!directKeys.every(k=>detail[k]!==undefined&&detail[k]!==null&&detail[k]!==''))return null;
+  if(detail.akademik===undefined||detail.akademik===null||detail.akademik==='')return null;
+  const bonus=Math.max(0,Math.min(6,Number(detail.akademik)));
+  const nrp=detail.nrp,year=detail.tahun,semester=detail.semester;
+  const catRule=getCatpersRuleForPeriod(nrp,year,semester);
+  const contributions={
+    jasmani:Number(detail.jasmani)*assessmentWeights.jasmani/100+(detail.bonus_kesjas_ideal?2:0),
+    rohani:Number(detail.rohani)*assessmentWeights.rohani/100,
+    psikologi:Number(detail.psikologi)*assessmentWeights.psikologi/100,
+    kesehatan:Number(detail.kesehatan)*assessmentWeights.kesehatan/100,
+    sipk:Number(detail.sipk)*assessmentWeights.sipk/100,
+    catpers:(75+catRule.score)*assessmentWeights.catpers/100,
+    akademik:(75+bonus)*assessmentWeights.akademik/100
+  };
+  return Number(Object.values(contributions).reduce((a,b)=>a+b,0).toFixed(3));
 }
 async function loadAssessmentWeights(){
-  try{const {data,error}=await sb.from('sdm_bobot_penilaian').select('bobot').eq('id',1).maybeSingle();if(error)throw error;assessmentWeights={...DEFAULT_ASSESSMENT_WEIGHTS,...(data?.bobot||{})}}
-  catch(e){console.warn('Bobot penilaian belum dapat dimuat; menggunakan bobot awal:',e.message);assessmentWeights={...DEFAULT_ASSESSMENT_WEIGHTS}}
-  const ids={jasmani:'weightJasmani',rohani:'weightRohani',psikologi:'weightPsikologi',kesehatan:'weightKesehatan',sipk:'weightSipk',akademik:'weightAkademik'};
+  try{
+    const {data,error}=await sb.from('sdm_bobot_penilaian').select('bobot').eq('id',1).maybeSingle();
+    if(error)throw error;
+    const saved=data?.bobot||{};
+    assessmentWeights=saved.catpers===undefined?{...DEFAULT_ASSESSMENT_WEIGHTS}:{...DEFAULT_ASSESSMENT_WEIGHTS,...saved};
+  }catch(e){console.warn('Bobot penilaian belum dapat dimuat; menggunakan bobot awal:',e.message);assessmentWeights={...DEFAULT_ASSESSMENT_WEIGHTS}}
+  const ids={jasmani:'weightJasmani',rohani:'weightRohani',psikologi:'weightPsikologi',kesehatan:'weightKesehatan',sipk:'weightSipk',catpers:'weightCatpers',akademik:'weightAkademik'};
   Object.entries(ids).forEach(([k,id])=>{if($(id))$(id).value=assessmentWeights[k]});renderWeightTotal();if($('monitorDataRows'))renderMonitoringData();
 }
 async function saveAssessmentWeights(){
@@ -796,11 +818,11 @@ async function saveCombinedAssessment(isDraft=false){
   ['rohani','psikologi','kesehatan','akademik','jasmani','sipk'].forEach(k=>{
     if(previous[k]!==undefined&&previous[k]!==null)detail[k]=previous[k];
   });
-  Object.assign(detail,entered,{tanggal_dibuat:date,status_penilaian:isDraft?'Sementara':'Tersimpan'});
+  Object.assign(detail,entered,{bonus_kesjas_ideal:!!$('bonusKesjasIdeal')?.checked,tanggal_dibuat:date,status_penilaian:isDraft?'Sementara':'Tersimpan'});
   try{
     const {error}=await sb.from('penilaian').upsert({
       nrp:p.nrp,nama:p.nama,tahun:year,semester,
-      nilai_akhir:(isMainAdmin()?calculateFinalScore(detail):null)??previous.akhir??null,catatan:JSON.stringify(detail),input_oleh:current.id
+      nilai_akhir:(isMainAdmin()?calculateFinalScore({...detail,nrp:p.nrp,tahun:year,semester}):null)??previous.akhir??null,catatan:JSON.stringify(detail),input_oleh:current.id
     },{onConflict:'nrp,tahun,semester'});
     if(error)throw error;
     await loadCloudData();
@@ -870,7 +892,7 @@ function exportUnitProgressWA(){
  lines.push('', 'Mohon perhatian seluruh operator satuan agar segera melaksanakan pengisian penilaian dan meningkatkan progres satuan masing-masing. Terima kasih.');
  let blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`Rekap_Progres_${cfg.label.replaceAll(' ','_')}_${period.replaceAll(' ','_')}.txt`;a.click();URL.revokeObjectURL(url);
 }
-function getMonitoringRows(){let sem=Number($('monitorSemester')?.value||2),yr=Number($('monitorYear')?.value||2026),q=($('monitorSearch')?.value||'').trim().toLowerCase(),unit=$('monitorUnit')?.value||'';let people=visibleRoster().filter(p=>(!unit||String(p.satker||'')===unit)&&(!q||[p.nrp,p.nama,p.jabatan,p.pangkat,p.satker].join(' ').toLowerCase().includes(q)));return people.map(p=>{let c=components.find(x=>String(x.nrp)===String(p.nrp)&&Number(x.semester||String(x.period||'').match(/SMT\s*(\d)/i)?.[1]||1)===sem&&Number(x.tahun||String(x.period||'').match(/(20\d{2})/)?.[1]||0)===yr)||{};return {...c,nrp:p.nrp,nama:p.nama||c.nama||'',pangkat:p.pangkat||c.pangkat||'',jabatan:p.jabatan||c.jabatan||'',satker:p.satker||c.satker||'',semester:sem,tahun:yr,jasmani:c.jasmani??null,rohani:c.rohani??null,psikologi:c.psikologi??null,kesehatan:c.kesehatan??null,catatan:c.catatan??null,sipk:c.sipk??null,akademik:c.akademik??null,akhir:calculateFinalScore(c)??c.akhir??null,belumDinilai:!Object.keys(c).length}}).sort(comparePersonelPangkat)}
+function getMonitoringRows(){let sem=Number($('monitorSemester')?.value||2),yr=Number($('monitorYear')?.value||2026),q=($('monitorSearch')?.value||'').trim().toLowerCase(),unit=$('monitorUnit')?.value||'';let people=visibleRoster().filter(p=>(!unit||String(p.satker||'')===unit)&&(!q||[p.nrp,p.nama,p.jabatan,p.pangkat,p.satker].join(' ').toLowerCase().includes(q)));return people.map(p=>{let c=components.find(x=>String(x.nrp)===String(p.nrp)&&Number(x.semester||String(x.period||'').match(/SMT\s*(\d)/i)?.[1]||1)===sem&&Number(x.tahun||String(x.period||'').match(/(20\d{2})/)?.[1]||0)===yr)||{};return {...c,nrp:p.nrp,nama:p.nama||c.nama||'',pangkat:p.pangkat||c.pangkat||'',jabatan:p.jabatan||c.jabatan||'',satker:p.satker||c.satker||'',semester:sem,tahun:yr,jasmani:c.jasmani??null,rohani:c.rohani??null,psikologi:c.psikologi??null,kesehatan:c.kesehatan??null,catatan:c.catatan??null,sipk:c.sipk??null,akademik:c.akademik??null,akhir:calculateFinalScore({...c,nrp:p.nrp,tahun:yr,semester:sem})??c.akhir??null,belumDinilai:!Object.keys(c).length}}).sort(comparePersonelPangkat)}
 function renderMonitoringData(){let rows=getMonitoringRows(),size=Number($('monitorPageSize')?.value||30),pages=Math.max(1,Math.ceil(rows.length/size));monitorPage=Math.max(1,Math.min(monitorPage,pages));let start=(monitorPage-1)*size,shown=rows.slice(start,start+size);$('monitorDataRows').innerHTML=shown.map((c,i)=>`<tr><td>${start+i+1}</td><td>${esc(c.nrp)}</td><td>${esc(c.nama)}</td><td>${esc(c.pangkat)}</td><td>${esc(c.jabatan)}</td><td>${esc(c.satker)}</td><td>${c.semester||$('monitorSemester').value}</td><td>${c.tahun||$('monitorYear').value}</td><td>${val(c.jasmani)}</td><td>${val(c.rohani)}</td><td>${val(c.psikologi)}</td><td>${val(c.kesehatan)}</td><td>${val(c.catatan)}</td><td>${val(c.sipk)}</td><td>${val(c.akademik)}</td><td><b>${val(c.akhir)}</b></td><td>${isMainAdmin()?`<button class="icon-edit" title="Edit nilai" aria-label="Edit nilai" onclick="editMonitoringScore('${esc(c.nrp)}',${c.semester},${c.tahun})">✎</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="17" style="text-align:center">Tidak ada personel pada filter ini.</td></tr>';$('monitorCount').textContent=`${rows.length} data ditemukan`;$('monitorPageInfo').textContent=`Menampilkan ${rows.length?start+1:0}–${Math.min(start+size,rows.length)} dari ${rows.length} data`;$('monitorPageNum').textContent=`Halaman ${monitorPage} / ${pages}`}
 function editMonitoringScore(nrp,semester,tahun){
   if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat mengubah nilai.');return}
@@ -888,7 +910,7 @@ async function saveMonitoringScore(nrp,semester,tahun){
   let old=components.find(x=>String(x.nrp)===String(nrp)&&Number(x.semester)===Number(semester)&&Number(x.tahun)===Number(tahun))||{};
   Object.assign(detail,{status_penilaian:'Tersimpan',tanggal_koreksi:new Date().toISOString(),dikoreksi_oleh:current.id});
   try{
-    const {error}=await sb.from('penilaian').upsert({nrp,nama:roster.get(String(nrp))?.nama||old.nama,tahun:Number(tahun),semester:Number(semester),nilai_akhir:calculateFinalScore(detail)??old.akhir??null,catatan:JSON.stringify(detail),input_oleh:current.id},{onConflict:'nrp,tahun,semester'});
+    const {error}=await sb.from('penilaian').upsert({nrp,nama:roster.get(String(nrp))?.nama||old.nama,tahun:Number(tahun),semester:Number(semester),nilai_akhir:calculateFinalScore({...detail,nrp,tahun:Number(tahun),semester:Number(semester)})??old.akhir??null,catatan:JSON.stringify(detail),input_oleh:current.id},{onConflict:'nrp,tahun,semester'});
     if(error)throw error;
     closeModal();await loadCloudData();renderAll();alert('Koreksi nilai berhasil disimpan.');
   }catch(e){alert('Gagal menyimpan koreksi: '+e.message)}
