@@ -49,7 +49,7 @@
 .dashboard-hero h1{color:#fff;font-size:27px;margin:6px 0}.dashboard-hero p{color:#d4e2f1;margin:0;font-size:12px}.dashboard-period{min-width:150px;padding:13px 16px;border:1px solid #ffffff44;border-radius:12px;background:#ffffff12;display:grid;gap:5px}.dashboard-period span,.dashboard-period small{font-size:9px;color:#c8d8e8;letter-spacing:1px}.dashboard-period b{font-size:19px}
 .dashboard-columns{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}.dashboard-columns .panel{margin-bottom:15px}.progress-track{height:12px;background:#e9eff6;border-radius:20px;overflow:hidden}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#ed8b35,#e9b65a);border-radius:20px;transition:width .25s}.progress-meta{display:flex;justify-content:space-between;gap:10px;margin:9px 0 15px;color:#6d7c91;font-size:10px}.unit-progress-list{display:grid;gap:9px}.unit-progress-row{display:grid;grid-template-columns:minmax(100px,1fr) 2fr 45px;gap:10px;align-items:center;font-size:10px}.unit-mini-track{height:7px;background:#edf1f6;border-radius:10px;overflow:hidden}.unit-mini-fill{height:100%;background:#2c8a78}.guide-item{display:grid;gap:4px;padding:10px 0;border-bottom:1px solid #edf1f6}.guide-item:last-child{border:0}.guide-item b{font-size:11px;color:#24476b}.guide-item span{font-size:10px;color:#718096;line-height:1.5}.quick-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.quick-action{border:1px solid #e1e8f0;background:#fbfcfe;border-radius:10px;padding:14px;text-align:left;display:grid;gap:6px;cursor:pointer;color:#1b2940}.quick-action:hover{border-color:#ed8b35;background:#fffaf4}.quick-action>span{font-size:21px;color:#ed8b35}.quick-action b{font-size:11px}.quick-action small{font-size:9px;color:#718096}.monitor-pagination select{min-width:72px}
 @media(max-width:1000px){.dashboard-columns{grid-template-columns:1fr}}@media(max-width:650px){.dashboard-hero{align-items:flex-start;flex-direction:column;padding:19px}.dashboard-period{width:100%}.quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.unit-progress-row{grid-template-columns:90px 1fr 38px}.progress-meta{font-size:9px}}
-.nav-notif{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:12px;background:#d92d20;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}.nav-notif.hidden{display:none!important}</style></head><body>
+.nav-notif{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:12px;background:#d92d20;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}.nav-notif.hidden{display:none!important}.academic-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.academic-checks label{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;cursor:pointer;font-size:13px}.academic-checks input{width:auto!important;margin:0!important;accent-color:var(--blue)}.academic-checks strong{margin-left:auto;color:var(--navy)}</style></head><body>
 <div id="loginScreen" class="loginwrap"><div class="login"><div class="logos"><img id="lPolri"><img id="lJatim"><img id="lSdm"></div><h1>SDM BUDAYA UNGGUL</h1><p>POLRES TRENGGALEK · SISTEM REKAP TERINTEGRASI</p>
 <div class="field"><label>USERNAME</label><input id="loginUser" autocomplete="username" placeholder="Masukkan username"></div><div class="field"><label>PASSWORD</label><input id="loginPass" type="password" autocomplete="current-password" placeholder="Masukkan password"></div><button class="btn block" onclick="login()">MASUK APLIKASI</button>
 <div class="hint"><b>Akun diberikan oleh Admin Utama.</b><br>Username dan password diterbitkan oleh Admin Utama. Tidak tersedia pendaftaran akun mandiri.</div><div id="loginError" style="color:#b33;font-size:11px;margin-top:9px"></div></div></div>
@@ -124,7 +124,14 @@
       <div class="field"><label>NILAI ROHANI</label><input id="scoreRohani" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Rohani"></div>
       <div class="field"><label>NILAI PSIKOLOGI</label><input id="scorePsikologi" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Psikologi"></div>
       <div class="field"><label>NILAI KESEHATAN</label><input id="scoreKesehatan" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Kesehatan"></div>
-      <div class="field"><label>PENDIDIKAN / PRESTASI AKADEMIK (TAMBAHAN NILAI)</label><select id="scoreAkademik"><option value="">Pilih pendidikan / prestasi</option><option value="6">Sespimti / Lemhanas / Sesko TNI / PKN I / S3 Dinas Disetarakan (+6)</option><option value="5">Sespimmen / Sesko Angkatan / PKN II / Sub Spesialis / S2 Dinas Disetarakan / S3 Dinas / S3 Non Dinas Linier (+5)</option><option value="4">S2 Dinas / S3 Non Dinas (+4)</option><option value="3">PTIK / Sespimma / PKA / Spesial / S2 Non Dinas Linier (+3)</option><option value="2">Pendidikan S2 Non Dinas (+2)</option><option value="1">AKPOL / SIPSS / SIP / PAG (+1)</option><option value="0">SMA / SMK Derajat (0)</option></select><div class="tiny">Nilai dasar akademik 75, ditambah nilai sesuai pendidikan/prestasi. Nilai ini bersifat statis.</div></div>
+      <div class="field"><label>PENDIDIKAN / PRESTASI AKADEMIK (TAMBAHAN NILAI)</label><select id="scoreAkademik" class="hidden" aria-hidden="true"><option value="">Pilih pendidikan</option><option value="70">SMA</option><option value="70.5">S1</option><option value="71">S2</option><option value="71.5">S3</option></select>
+      <div class="academic-checks" role="group" aria-label="Pilih satu jenjang pendidikan">
+        <label><input type="checkbox" class="academic-level" value="70" onchange="selectAcademicLevel(this)"> SMA <strong>70</strong></label>
+        <label><input type="checkbox" class="academic-level" value="70.5" onchange="selectAcademicLevel(this)"> S1 <strong>70,5</strong></label>
+        <label><input type="checkbox" class="academic-level" value="71" onchange="selectAcademicLevel(this)"> S2 <strong>71</strong></label>
+        <label><input type="checkbox" class="academic-level" value="71.5" onchange="selectAcademicLevel(this)"> S3 <strong>71,5</strong></label>
+      </div>
+      <div class="tiny">Pilih satu jenjang pendidikan. Nilai akademik bersifat statis sesuai jenjang pendidikan dan disimpan sebagai nilai langsung.</div></div>
       <div class="field"><label>NILAI JASMANI</label><input id="scoreJasmani" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Jasmani"></div><div class="field"><label><input id="bonusKesjasIdeal" type="checkbox" style="width:auto;margin-right:8px"> Bonus Kesjas +2 (Baik dan bobot badan ideal)</label><div class="tiny">Centang hanya apabila kedua syarat pada simulasi terpenuhi.</div></div>
       <div class="field"><label>NILAI SIPK</label><input id="scoreSipk" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai SIPK"></div>
     </div>
@@ -720,8 +727,16 @@ function clearAssessmentPerson(){
   clearAssessmentScoreInputs();
   toggleAssessmentClear();
 }
+function selectAcademicLevel(el){
+  document.querySelectorAll('.academic-level').forEach(box=>{box.checked=box===el});
+  if($('scoreAkademik'))$('scoreAkademik').value=el&&el.checked?el.value:'';
+}
+function syncAcademicCheckboxes(value){
+  const v=String(value??'');
+  document.querySelectorAll('.academic-level').forEach(box=>{box.checked=(v!==''&&String(box.value)===v)});
+}
 function clearAssessmentScoreInputs(){
-  ['scoreRohani','scorePsikologi','scoreKesehatan','scoreAkademik','scoreJasmani','scoreSipk'].forEach(id=>{if($(id))$(id).value=''});if($('bonusKesjasIdeal'))$('bonusKesjasIdeal').checked=false;
+  ['scoreRohani','scorePsikologi','scoreKesehatan','scoreAkademik','scoreJasmani','scoreSipk'].forEach(id=>{if($(id))$(id).value=''});syncAcademicCheckboxes('');if($('bonusKesjasIdeal'))$('bonusKesjasIdeal').checked=false;
 }
 function reloadAssessmentValues(){
   if(assessmentPersonNrp){
@@ -739,6 +754,7 @@ function loadAssessmentValues(p){
   Object.entries(fields).forEach(([key,id])=>{
     if(saved[key]!==undefined&&saved[key]!==null&&saved[key]!=='')$(id).value=saved[key];
   });
+  syncAcademicCheckboxes(saved.akademik);
 }
 function renderAssessmentPerson(p){
   $('assessmentPersonInfo').innerHTML=`<div style="font-weight:800;color:#0e5265;margin-bottom:10px">Keterangan Personil</div>
@@ -788,7 +804,7 @@ function calculateFinalScore(detail){
   const directKeys=['jasmani','rohani','psikologi','kesehatan','sipk'];
   if(!directKeys.every(k=>detail[k]!==undefined&&detail[k]!==null&&detail[k]!==''))return null;
   if(detail.akademik===undefined||detail.akademik===null||detail.akademik==='')return null;
-  const bonus=Math.max(0,Math.min(6,Number(detail.akademik)));
+  const academicScore=Number(detail.akademik);
   const nrp=detail.nrp,year=detail.tahun,semester=detail.semester;
   const catpersRecord=getCatpersRecordForPeriod(nrp,year,semester);
   if(!catpersRecord)return null;
@@ -800,7 +816,7 @@ function calculateFinalScore(detail){
     kesehatan:Number(detail.kesehatan)*assessmentWeights.kesehatan/100,
     sipk:Number(detail.sipk)*assessmentWeights.sipk/100,
     catpers:(75+catRule.score)*assessmentWeights.catpers/100,
-    akademik:(75+bonus)*assessmentWeights.akademik/100
+    akademik:academicScore*assessmentWeights.akademik/100
   };
   return Number(Object.values(contributions).reduce((a,b)=>a+b,0).toFixed(3));
 }
