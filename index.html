@@ -771,9 +771,16 @@ function renderWeightTotal(){
   const vals=['weightSipk','weightCatpers','weightKesehatan','weightJasmani','weightRohani','weightPsikologi','weightAkademik'].map(id=>Number($(id)?.value||0)),total=vals.reduce((a,b)=>a+b,0);
   if($('weightTotal')){$('weightTotal').textContent=`Total bobot: ${Number(total.toFixed(2))}%`;$('weightTotal').style.color=Math.abs(total-100)<0.001?'#187a55':'#b45309'}
 }
+function getCatpersRecordForPeriod(nrp,year,semester){
+  return catpersRecords.find(x=>String(x.nrp)===String(nrp)&&Number(x.tahun)===Number(year)&&Number(x.semester)===Number(semester))||null;
+}
 function getCatpersRuleForPeriod(nrp,year,semester){
-  const row=catpersRecords.find(x=>String(x.nrp)===String(nrp)&&Number(x.tahun)===Number(year)&&Number(x.semester)===Number(semester));
+  const row=getCatpersRecordForPeriod(nrp,year,semester);
   return row?catpersRule(row.status):CATPERS_RULES.no_record;
+}
+function getCatpersContributionForPeriod(nrp,year,semester){
+  const rule=getCatpersRuleForPeriod(nrp,year,semester);
+  return Number(((75+rule.score)*assessmentWeights.catpers/100).toFixed(2));
 }
 function calculateFinalScore(detail){
   const directKeys=['jasmani','rohani','psikologi','kesehatan','sipk'];
@@ -908,20 +915,20 @@ function exportUnitProgressWA(){
  lines.push('', 'Mohon perhatian seluruh operator satuan agar segera melaksanakan pengisian penilaian dan meningkatkan progres satuan masing-masing. Terima kasih.');
  let blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`Rekap_Progres_${cfg.label.replaceAll(' ','_')}_${period.replaceAll(' ','_')}.txt`;a.click();URL.revokeObjectURL(url);
 }
-function getMonitoringRows(){let sem=Number($('monitorSemester')?.value||2),yr=Number($('monitorYear')?.value||2026),q=($('monitorSearch')?.value||'').trim().toLowerCase(),unit=$('monitorUnit')?.value||'';let people=visibleRoster().filter(p=>(!unit||String(p.satker||'')===unit)&&(!q||[p.nrp,p.nama,p.jabatan,p.pangkat,p.satker].join(' ').toLowerCase().includes(q)));return people.map(p=>{let c=components.find(x=>String(x.nrp)===String(p.nrp)&&Number(x.semester||String(x.period||'').match(/SMT\s*(\d)/i)?.[1]||1)===sem&&Number(x.tahun||String(x.period||'').match(/(20\d{2})/)?.[1]||0)===yr)||{};return {...c,nrp:p.nrp,nama:p.nama||c.nama||'',pangkat:p.pangkat||c.pangkat||'',jabatan:p.jabatan||c.jabatan||'',satker:p.satker||c.satker||'',semester:sem,tahun:yr,jasmani:c.jasmani??null,rohani:c.rohani??null,psikologi:c.psikologi??null,kesehatan:c.kesehatan??null,catatan:c.catatan??null,sipk:c.sipk??null,akademik:c.akademik??null,akhir:calculateFinalScore({...c,nrp:p.nrp,tahun:yr,semester:sem})??c.akhir??null,belumDinilai:!Object.keys(c).length}}).sort(comparePersonelPangkat)}
+function getMonitoringRows(){let sem=Number($('monitorSemester')?.value||2),yr=Number($('monitorYear')?.value||2026),q=($('monitorSearch')?.value||'').trim().toLowerCase(),unit=$('monitorUnit')?.value||'';let people=visibleRoster().filter(p=>(!unit||String(p.satker||'')===unit)&&(!q||[p.nrp,p.nama,p.jabatan,p.pangkat,p.satker].join(' ').toLowerCase().includes(q)));return people.map(p=>{let c=components.find(x=>String(x.nrp)===String(p.nrp)&&Number(x.semester||String(x.period||'').match(/SMT\s*(\d)/i)?.[1]||1)===sem&&Number(x.tahun||String(x.period||'').match(/(20\d{2})/)?.[1]||0)===yr)||{};return {...c,nrp:p.nrp,nama:p.nama||c.nama||'',pangkat:p.pangkat||c.pangkat||'',jabatan:p.jabatan||c.jabatan||'',satker:p.satker||c.satker||'',semester:sem,tahun:yr,jasmani:c.jasmani??null,rohani:c.rohani??null,psikologi:c.psikologi??null,kesehatan:c.kesehatan??null,catatan:getCatpersContributionForPeriod(p.nrp,yr,sem),sipk:c.sipk??null,akademik:c.akademik??null,akhir:calculateFinalScore({...c,nrp:p.nrp,tahun:yr,semester:sem})??c.akhir??null,belumDinilai:!Object.keys(c).length}}).sort(comparePersonelPangkat)}
 function renderMonitoringData(){let rows=getMonitoringRows(),size=Number($('monitorPageSize')?.value||30),pages=Math.max(1,Math.ceil(rows.length/size));monitorPage=Math.max(1,Math.min(monitorPage,pages));let start=(monitorPage-1)*size,shown=rows.slice(start,start+size);$('monitorDataRows').innerHTML=shown.map((c,i)=>`<tr><td>${start+i+1}</td><td>${esc(c.nrp)}</td><td>${esc(c.nama)}</td><td>${esc(c.pangkat)}</td><td>${esc(c.jabatan)}</td><td>${esc(c.satker)}</td><td>${c.semester||$('monitorSemester').value}</td><td>${c.tahun||$('monitorYear').value}</td><td>${val(c.jasmani)}</td><td>${val(c.rohani)}</td><td>${val(c.psikologi)}</td><td>${val(c.kesehatan)}</td><td>${val(c.catatan)}</td><td>${val(c.sipk)}</td><td>${val(c.akademik)}</td><td><b>${val(c.akhir)}</b></td><td>${isMainAdmin()?`<button class="icon-edit" title="Edit nilai" aria-label="Edit nilai" onclick="editMonitoringScore('${esc(c.nrp)}',${c.semester},${c.tahun})">✎</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="17" style="text-align:center">Tidak ada personel pada filter ini.</td></tr>';$('monitorCount').textContent=`${rows.length} data ditemukan`;$('monitorPageInfo').textContent=`Menampilkan ${rows.length?start+1:0}–${Math.min(start+size,rows.length)} dari ${rows.length} data`;$('monitorPageNum').textContent=`Halaman ${monitorPage} / ${pages}`}
 function editMonitoringScore(nrp,semester,tahun){
   if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat mengubah nilai.');return}
   let c=components.find(x=>String(x.nrp)===String(nrp)&&Number(x.semester)===Number(semester)&&Number(x.tahun)===Number(tahun))||{};
   let p=roster.get(String(nrp));if(!p)return;
-  let fields=[['Jasmani','jasmani'],['Rohani','rohani'],['Psikologi','psikologi'],['Kesehatan','kesehatan'],['Catatan Personil','catatan'],['SIPK','sipk'],['Akademik','akademik']];
+  let fields=[['Jasmani','jasmani'],['Rohani','rohani'],['Psikologi','psikologi'],['Kesehatan','kesehatan'],['SIPK','sipk'],['Akademik','akademik']];
   openModal('Koreksi Nilai Penilaian',`<p><b>${esc(p.nama)}</b> · NRP ${esc(nrp)} · SMT ${semester} ${tahun}</p>
   ${fields.map(([label,key])=>`<div class="field"><label>${label.toUpperCase()}</label><input id="monEdit_${key}" type="number" min="0" max="100" step=".01" value="${c[key]??''}" placeholder="Kosongkan bila belum ada"></div>`).join('')}
   <div class="row" style="justify-content:flex-end"><button class="btn light" onclick="closeModal()">Batal</button><button class="btn" onclick="saveMonitoringScore('${esc(nrp)}',${semester},${tahun})">Simpan Koreksi</button></div>`);
 }
 async function saveMonitoringScore(nrp,semester,tahun){
   if(!isMainAdmin())return;
-  let keys=['jasmani','rohani','psikologi','kesehatan','catatan','sipk','akademik'],detail={};
+  let keys=['jasmani','rohani','psikologi','kesehatan','sipk','akademik'],detail={};
   for(let k of keys){let raw=$('monEdit_'+k).value;if(raw!==''){let n=Number(raw);if(!Number.isFinite(n)||n<0||n>100){alert('Nilai '+k.toUpperCase()+' harus 0–100.');return}detail[k]=n}}
   let old=components.find(x=>String(x.nrp)===String(nrp)&&Number(x.semester)===Number(semester)&&Number(x.tahun)===Number(tahun))||{};
   Object.assign(detail,{status_penilaian:'Tersimpan',tanggal_koreksi:new Date().toISOString(),dikoreksi_oleh:current.id});
