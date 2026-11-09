@@ -124,14 +124,7 @@
       <div class="field"><label>NILAI ROHANI</label><input id="scoreRohani" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Rohani"></div>
       <div class="field"><label>NILAI PSIKOLOGI</label><input id="scorePsikologi" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Psikologi"></div>
       <div class="field"><label>NILAI KESEHATAN</label><input id="scoreKesehatan" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Kesehatan"></div>
-      <div class="field"><label>PENDIDIKAN / PRESTASI AKADEMIK (TAMBAHAN NILAI)</label><select id="scoreAkademik" class="hidden" aria-hidden="true"><option value="">Pilih pendidikan</option><option value="70">SMA</option><option value="70.5">S1</option><option value="71">S2</option><option value="71.5">S3</option></select>
-      <div class="academic-checks" role="group" aria-label="Pilih satu jenjang pendidikan">
-        <label><input type="checkbox" class="academic-level" value="70" onchange="selectAcademicLevel(this)"> SMA <strong>70</strong></label>
-        <label><input type="checkbox" class="academic-level" value="70.5" onchange="selectAcademicLevel(this)"> S1 <strong>70,5</strong></label>
-        <label><input type="checkbox" class="academic-level" value="71" onchange="selectAcademicLevel(this)"> S2 <strong>71</strong></label>
-        <label><input type="checkbox" class="academic-level" value="71.5" onchange="selectAcademicLevel(this)"> S3 <strong>71,5</strong></label>
-      </div>
-      <div class="tiny">Pilih satu jenjang pendidikan. Nilai akademik bersifat statis sesuai jenjang pendidikan dan disimpan sebagai nilai langsung.</div></div>
+      <div class="field"><label>PENDIDIKAN / PRESTASI AKADEMIK (TAMBAHAN NILAI)</label><select id="scoreAkademik"><option value="">Pilih pendidikan / prestasi akademik</option><option value="70">SMA — Nilai 70</option><option value="70.5">S1 — Nilai 70,5</option><option value="71">S2 — Nilai 71</option><option value="71.5">S3 — Nilai 71,5</option></select><div class="tiny">Pilih satu jenjang pendidikan. Nilai akademik bersifat statis sesuai jenjang pendidikan dan disimpan sebagai nilai langsung.</div></div>
       <div class="field"><label>NILAI JASMANI</label><input id="scoreJasmani" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai Jasmani"></div><div class="field"><label><input id="bonusKesjasIdeal" type="checkbox" style="width:auto;margin-right:8px"> Bonus Kesjas +2 (Baik dan bobot badan ideal)</label><div class="tiny">Centang hanya apabila kedua syarat pada simulasi terpenuhi.</div></div>
       <div class="field"><label>NILAI SIPK</label><input id="scoreSipk" type="number" min="0" max="100" step=".01" placeholder="Masukkan nilai SIPK"></div>
     </div>
@@ -727,13 +720,9 @@ function clearAssessmentPerson(){
   clearAssessmentScoreInputs();
   toggleAssessmentClear();
 }
-function selectAcademicLevel(el){
-  document.querySelectorAll('.academic-level').forEach(box=>{box.checked=box===el});
-  if($('scoreAkademik'))$('scoreAkademik').value=el&&el.checked?el.value:'';
-}
 function syncAcademicCheckboxes(value){
-  const v=String(value??'');
-  document.querySelectorAll('.academic-level').forEach(box=>{box.checked=(v!==''&&String(box.value)===v)});
+  const select=$('scoreAkademik');
+  if(select)select.value=String(value??'');
 }
 function clearAssessmentScoreInputs(){
   ['scoreRohani','scorePsikologi','scoreKesehatan','scoreAkademik','scoreJasmani','scoreSipk'].forEach(id=>{if($(id))$(id).value=''});syncAcademicCheckboxes('');if($('bonusKesjasIdeal'))$('bonusKesjasIdeal').checked=false;
