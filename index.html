@@ -51,7 +51,7 @@
 @media(max-width:1000px){.dashboard-columns{grid-template-columns:1fr}}@media(max-width:650px){.dashboard-hero{align-items:flex-start;flex-direction:column;padding:19px}.dashboard-period{width:100%}.quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.unit-progress-row{grid-template-columns:90px 1fr 38px}.progress-meta{font-size:9px}}
 .nav-notif{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:12px;background:#d92d20;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}.nav-notif.hidden{display:none!important}.academic-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.academic-checks label{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;cursor:pointer;font-size:13px}.academic-checks input{width:auto!important;margin:0!important;accent-color:var(--blue)}.academic-checks strong{margin-left:auto;color:var(--navy)}.password-wrap{display:flex;align-items:center;position:relative}.password-wrap input{width:100%;padding-right:46px}.password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;padding:7px;color:#52657b;font-size:17px;line-height:1}.password-toggle:focus-visible{outline:2px solid var(--blue);border-radius:6px}</style></head><body>
 <div id="loginScreen" class="loginwrap"><div class="login"><div class="logos"><img id="lPolri"><img id="lJatim"><img id="lSdm"></div><h1>SDM BUDAYA UNGGUL</h1><p>POLRES TRENGGALEK · SISTEM REKAP TERINTEGRASI</p>
-<div class="field"><label>USERNAME</label><input id="loginUser" autocomplete="username" placeholder="Masukkan username"></div><div class="field"><label>PASSWORD</label><div class="password-wrap"><input id="loginPass" type="password" autocomplete="current-password" placeholder="Masukkan password"><button type="button" class="password-toggle" id="toggleLoginPassword" onclick="toggleLoginPasswordVisibility()" aria-label="Tampilkan password" title="Tampilkan password">👁</button></div></div><button class="btn block" onclick="login()">MASUK APLIKASI</button>
+<div class="field"><label>USERNAME</label><input id="loginUser" autocomplete="username" name="username" placeholder="Masukkan username"></div><div class="field"><label>PASSWORD</label><div class="password-wrap"><input id="loginPass" type="password" autocomplete="current-password" name="password" placeholder="Masukkan password"><button type="button" class="password-toggle" id="toggleLoginPassword" onclick="toggleLoginPasswordVisibility()" aria-label="Tampilkan password" title="Tampilkan password">👁</button></div></div><button class="btn block" onclick="login()">MASUK APLIKASI</button>
 <div class="hint"><b>Akun diberikan oleh Admin Utama.</b><br>Username dan password diterbitkan oleh Admin Utama. Tidak tersedia pendaftaran akun mandiri.</div><div id="loginError" style="color:#b33;font-size:11px;margin-top:9px"></div></div></div>
 <div id="appScreen" class="layout hidden"><aside class="side"><div class="logos"><img id="sPolri"><img id="sJatim"><img id="sSdm"></div><div class="brand">SDM BUDAYA UNGGUL<small>POLRES TRENGGALEK</small></div>
 <div class="navlabel">MENU UTAMA</div>
@@ -173,8 +173,15 @@
 // === KONEKSI SUPABASE SDM BUDAYA UNGGUL ===
 const SUPABASE_URL = 'https://ynggeraqbwhrhdyfzlzt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_BfAMLQn-xoS6QYFPmfFepw_gyVdyBnU';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Sesi hanya disimpan di memori halaman. Menutup browser/refresh mengharuskan login kembali.
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false }
+});
 let supabaseSession = null;
+const IDLE_LIMIT_MS = 5 * 60 * 1000;
+const DEVICE_SESSION_TABLE = 'user_device_sessions';
+let deviceSessionId = null, idleTimer = null, sessionHeartbeatTimer = null, sessionCheckBusy = false;
+let lastUserActivity = Date.now();
 let satkerMappings = [];
 let satkerMappingLoaded = false;
 
@@ -236,17 +243,9 @@ async function loadProfile(user) {
   };
 }
 async function restoreSupabaseSession() {
-  try {
-    const {data,error} = await sb.auth.getSession();
-    if (error) throw error;
-    if (data.session) {
-      supabaseSession = data.session;
-      current = await loadProfile(data.session.user);
-      await loadCloudData();
-      showLoggedIn();
-      await loadAccounts();
-    }
-  } catch (e) { console.warn('Pemulihan sesi:', e.message); }
+  // persistSession=false: sesi tidak dipulihkan otomatis setelah halaman/browser dibuka ulang.
+  try { await sb.auth.signOut(); } catch (_) {}
+  supabaseSession = null; current = null;
 }
 function showLoggedIn() {
   $('loginScreen').classList.add('hidden'); $('appScreen').classList.remove('hidden');
@@ -336,29 +335,113 @@ function visibleRoster(){
   });
 }
 function fillPersonSelects(){['erPerson','emPerson','tkPerson','movePerson'].forEach(id=>{if($(id))$(id).innerHTML=visibleRoster().map(p=>`<option value="${esc(p.nrp)}">${esc(p.nama)} · ${esc(p.nrp)}</option>`).join('')})}
-// ===== PRESENSI LOGIN AKTIF (heartbeat setiap 30 detik) =====
+// ===== PENGELOLAAN SESI PER PERANGKAT =====
 let presenceTimer=null, presenceRefreshTimer=null;
-async function sendPresence(){
-  if(!current || !supabaseSession) return;
-  const row={user_id:current.id,nama:current.name,username:current.username,role:current.role,satker:current.unit,last_seen_at:new Date().toISOString()};
-  const {error}=await sb.from('user_presence').upsert(row,{onConflict:'user_id'});
-  if(error) console.warn('Presensi belum tersedia:',error.message);
+function makeDeviceId(){
+  if(window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16)});
+}
+function deviceLabel(){
+  const ua=navigator.userAgent||'Browser';
+  let browser='Browser';
+  if(/Edg\//.test(ua))browser='Microsoft Edge';
+  else if(/Chrome\//.test(ua))browser='Google Chrome';
+  else if(/Firefox\//.test(ua))browser='Mozilla Firefox';
+  else if(/Safari\//.test(ua)&&!/Chrome\//.test(ua))browser='Safari';
+  const os=/Windows/.test(ua)?'Windows':/Mac OS/.test(ua)?'macOS':/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iOS':/Linux/.test(ua)?'Linux':'Perangkat';
+  return browser+' · '+os;
+}
+async function registerDeviceSession(){
+  deviceSessionId=makeDeviceId();
+  const now=new Date().toISOString();
+  const {error}=await sb.from(DEVICE_SESSION_TABLE).insert({
+    id:deviceSessionId,user_id:current.id,nama:current.name,username:current.username,
+    role:current.role,satker:current.unit,device_label:deviceLabel(),
+    created_at:now,last_seen_at:now,expires_at:new Date(Date.now()+IDLE_LIMIT_MS).toISOString(),revoked_at:null
+  });
+  if(error) throw new Error('Gagal membuat sesi perangkat. Pastikan tabel user_device_sessions sudah disiapkan di Supabase. '+error.message);
+}
+async function touchDeviceSession(){
+  if(!current||!deviceSessionId)return;
+  const now=new Date().toISOString();
+  const {error}=await sb.from(DEVICE_SESSION_TABLE).update({
+    last_seen_at:now,expires_at:new Date(Date.now()+IDLE_LIMIT_MS).toISOString()
+  }).eq('id',deviceSessionId).eq('user_id',current.id).is('revoked_at',null);
+  if(error) console.warn('Pembaruan sesi perangkat gagal:',error.message);
+}
+async function endDeviceSession(){
+  if(deviceSessionId&&current?.id){
+    try{await sb.from(DEVICE_SESSION_TABLE).update({revoked_at:new Date().toISOString()}).eq('id',deviceSessionId).eq('user_id',current.id)}catch(_){}
+  }
+  deviceSessionId=null;
+}
+function resetIdleTimer(){
+  lastUserActivity=Date.now();
+  if(idleTimer)clearTimeout(idleTimer);
+  if(current)idleTimer=setTimeout(()=>logout('Sesi berakhir karena tidak ada aktivitas selama 5 menit.'),IDLE_LIMIT_MS);
+}
+function startSessionGuards(){
+  ['pointerdown','keydown','mousemove','touchstart','scroll'].forEach(ev=>document.addEventListener(ev,resetIdleTimer,{passive:true}));
+  resetIdleTimer();
+  if(sessionHeartbeatTimer)clearInterval(sessionHeartbeatTimer);
+  sessionHeartbeatTimer=setInterval(async()=>{
+    if(!current||!deviceSessionId||sessionCheckBusy)return;
+    if(Date.now()-lastUserActivity>=IDLE_LIMIT_MS){await logout('Sesi berakhir karena tidak ada aktivitas selama 5 menit.');return}
+    sessionCheckBusy=true;
+    try{
+      const {data,error}=await sb.from(DEVICE_SESSION_TABLE).select('revoked_at,expires_at').eq('id',deviceSessionId).maybeSingle();
+      if(error)throw error;
+      if(!data||data.revoked_at||new Date(data.expires_at).getTime()<Date.now()){
+        await logout('Sesi perangkat telah dicabut atau kedaluwarsa oleh sistem.');
+        return;
+      }
+      await touchDeviceSession();
+    }catch(e){console.warn('Pemeriksaan sesi:',e.message)}
+    finally{sessionCheckBusy=false}
+  },20000);
+}
+function stopSessionGuards(){
+  if(idleTimer)clearTimeout(idleTimer);
+  if(sessionHeartbeatTimer)clearInterval(sessionHeartbeatTimer);
+  idleTimer=null;sessionHeartbeatTimer=null;
 }
 async function refreshActiveUsers(){
   if(!isMainAdmin()) return;
   const box=$('activeUsersList'),count=$('activeUsersCount'); if(!box||!count)return;
-  const cutoff=new Date(Date.now()-120000).toISOString();
-  const {data,error}=await sb.from('user_presence').select('nama,username,role,satker,last_seen_at').gte('last_seen_at',cutoff).order('last_seen_at',{ascending:false});
-  if(error){box.textContent='Belum dapat membaca daftar login aktif. Pastikan tabel user_presence sudah dibuat di Supabase.';count.textContent='—';return}
-  const rows=data||[]; count.textContent=rows.length+' aktif';
-  box.innerHTML=rows.length?'<div class="tablewrap"><table><thead><tr><th>NAMA</th><th>USERNAME</th><th>PERAN</th><th>SATUAN</th><th>AKTIVITAS TERAKHIR</th></tr></thead><tbody>'+rows.map(x=>`<tr><td><b>${esc(x.nama||'—')}</b></td><td>${esc(x.username||'—')}</td><td>${esc(x.role||'—')}</td><td>${esc(x.satker||'—')}</td><td>${new Date(x.last_seen_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td></tr>`).join('')+'</tbody></table></div>':'Belum ada pengguna lain yang login aktif.';
+  const {data,error}=await sb.from(DEVICE_SESSION_TABLE)
+    .select('id,user_id,nama,username,role,satker,device_label,created_at,last_seen_at,expires_at,revoked_at')
+    .is('revoked_at',null).gt('expires_at',new Date().toISOString())
+    .order('last_seen_at',{ascending:false});
+  if(error){box.textContent='Belum dapat membaca sesi perangkat. Pastikan tabel user_device_sessions dan kebijakan aksesnya sudah dibuat di Supabase.';count.textContent='—';return}
+  const rows=data||[];count.textContent=rows.length+' aktif';
+  box.innerHTML=rows.length?'<div class="tablewrap"><table><thead><tr><th>NAMA</th><th>USERNAME</th><th>PERAN</th><th>SATUAN</th><th>PERANGKAT</th><th>AKTIVITAS TERAKHIR</th><th>AKSI</th></tr></thead><tbody>'+
+    rows.map(x=>`<tr><td><b>${esc(x.nama||'—')}</b></td><td>${esc(x.username||'—')}</td><td>${esc(x.role||'—')}</td><td>${esc(x.satker||'—')}</td><td>${esc(x.device_label||'—')}</td><td>${new Date(x.last_seen_at).toLocaleString('id-ID')}</td><td><button class="btn danger" type="button" onclick="revokeDeviceSession('${esc(x.id)}')">Cabut Sesi</button></td></tr>`).join('')+
+    '</tbody></table></div>':'Belum ada sesi perangkat yang aktif.';
+}
+async function revokeDeviceSession(id){
+  if(!isMainAdmin()||!id)return;
+  if(!confirm('Cabut sesi perangkat ini? Pengguna akan diminta login kembali.'))return;
+  const {error}=await sb.from(DEVICE_SESSION_TABLE).update({revoked_at:new Date().toISOString()}).eq('id',id);
+  if(error){alert('Gagal mencabut sesi: '+error.message);return}
+  await refreshActiveUsers();
 }
 function startPresenceTracking(){
-  if(presenceTimer)clearInterval(presenceTimer); if(presenceRefreshTimer)clearInterval(presenceRefreshTimer);
-  sendPresence(); presenceTimer=setInterval(sendPresence,30000);
-  refreshActiveUsers(); presenceRefreshTimer=setInterval(refreshActiveUsers,30000);
+  // Alias dipertahankan agar pemanggilan lama tidak mengganggu alur aplikasi.
+  startSessionGuards();refreshActiveUsers();
+  if(presenceRefreshTimer)clearInterval(presenceRefreshTimer);
+  presenceRefreshTimer=setInterval(refreshActiveUsers,20000);
 }
-window.addEventListener('beforeunload',()=>{if(presenceTimer)clearInterval(presenceTimer)});
+window.addEventListener('pagehide',()=>{
+  stopSessionGuards();if(presenceRefreshTimer)clearInterval(presenceRefreshTimer);
+  // Best effort: tandai sesi berakhir ketika tab/browser ditutup.
+  if(deviceSessionId&&supabaseSession?.access_token){
+    fetch(`${SUPABASE_URL}/rest/v1/${DEVICE_SESSION_TABLE}?id=eq.${encodeURIComponent(deviceSessionId)}`,{
+      method:'PATCH',keepalive:true,
+      headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${supabaseSession.access_token}`,'Content-Type':'application/json',Prefer:'return=minimal'},
+      body:JSON.stringify({revoked_at:new Date().toISOString()})
+    }).catch(()=>{});
+  }
+});
 
 function toggleLoginPasswordVisibility(){
   const input=$('loginPass'),button=$('toggleLoginPassword');
@@ -379,23 +462,26 @@ async function login(){
     if(error) throw error;
     supabaseSession=data.session;
     current=await loadProfile(data.user);
+    await registerDeviceSession();
     await loadCloudData();
     await loadAccounts();
     $('loginError').textContent='';
     showLoggedIn();
   } catch(e) {
+    await endDeviceSession();
     await sb.auth.signOut().catch(()=>{});
     current=null;
     $('loginError').textContent=e.message || 'Login gagal. Periksa email dan password.';
   }
 }
-async function logout(){
+async function logout(reason=''){
+  stopSessionGuards();
   if(presenceTimer)clearInterval(presenceTimer); if(presenceRefreshTimer)clearInterval(presenceRefreshTimer);
-  if(current?.id) await sb.from('user_presence').delete().eq('user_id',current.id);
+  await endDeviceSession();
   await sb.auth.signOut();
   supabaseSession=null; current=null;
   $('appScreen').classList.add('hidden'); $('loginScreen').classList.remove('hidden');
-  $('loginPass').value=''; $('loginError').textContent='';
+  $('loginPass').value=''; $('loginError').textContent=reason;
 }
 function go(id){if(id==='importnilai'&&!canImportValues()){alert('Menu ini khusus Operator Utama dan Admin Utama.');return}if((id==='bobot'||id==='activeusers')&&!isMainAdmin()){alert('Menu ini hanya dapat diakses Admin Utama.');return}const target=$(id);if(!target)return;document.querySelectorAll('.wrap section').forEach(x=>x.classList.add('hidden'));target.classList.remove('hidden');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));if(current)localStorage.setItem('sdm_budaya_unggul_last_page',id);if(id==='activeusers')refreshActiveUsers();if(id==='formcatpers')previewCatpersScore();if((id==='formpenilaian'||id==='formcatpers')&&$('assessmentDate')&&!$('assessmentDate').value){let d=new Date();$('assessmentDate').value=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}renderAll()}
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.page));
