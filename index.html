@@ -173,9 +173,10 @@
 // === KONEKSI SUPABASE SDM BUDAYA UNGGUL ===
 const SUPABASE_URL = 'https://ynggeraqbwhrhdyfzlzt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_BfAMLQn-xoS6QYFPmfFepw_gyVdyBnU';
-// Sesi hanya disimpan di memori halaman. Menutup browser/refresh mengharuskan login kembali.
+// Sesi disimpan di sessionStorage: bertahan saat refresh pada tab yang sama,
+// tetapi tidak menjadi penyimpanan login permanen seperti localStorage.
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false }
+  auth: { persistSession: true, storage: window.sessionStorage, autoRefreshToken: true, detectSessionInUrl: false }
 });
 let supabaseSession = null;
 const IDLE_LIMIT_MS = 5 * 60 * 1000;
@@ -243,9 +244,35 @@ async function loadProfile(user) {
   };
 }
 async function restoreSupabaseSession() {
-  // persistSession=false: sesi tidak dipulihkan otomatis setelah halaman/browser dibuka ulang.
-  try { await sb.auth.signOut(); } catch (_) {}
-  supabaseSession = null; current = null;
+  // Pulihkan sesi hanya dari sessionStorage tab ini. Refresh tidak meminta login ulang;
+  // tab/browser baru tidak memiliki sessionStorage sesi sebelumnya.
+  try {
+    const { data, error } = await sb.auth.getSession();
+    if (error) throw error;
+    if (!data?.session?.user) { supabaseSession=null; current=null; return; }
+    supabaseSession=data.session;
+    deviceSessionId=sessionStorage.getItem('sdm_device_session_id');
+    if(!deviceSessionId) throw new Error('Sesi perangkat tidak ditemukan. Silakan login kembali.');
+    const {data:device,error:deviceError}=await sb.from(DEVICE_SESSION_TABLE)
+      .select('id,revoked_at,expires_at,user_id').eq('id',deviceSessionId).maybeSingle();
+    if(deviceError) throw deviceError;
+    if(!device || device.user_id!==data.session.user.id || device.revoked_at || new Date(device.expires_at).getTime()<=Date.now())
+      throw new Error('Sesi perangkat telah berakhir atau dicabut. Silakan login kembali.');
+    current=await loadProfile(data.session.user);
+    lastUserActivity=Date.now();
+    await touchDeviceSession();
+    await loadCloudData();
+    await loadAccounts();
+    $('loginError').textContent='';
+    showLoggedIn();
+  } catch (e) {
+    console.warn('Pemulihan sesi tidak dapat dilakukan:',e.message);
+    try { await sb.auth.signOut(); } catch (_) {}
+    sessionStorage.removeItem('sdm_device_session_id');
+    supabaseSession=null;current=null;deviceSessionId=null;
+    $('appScreen').classList.add('hidden');$('loginScreen').classList.remove('hidden');
+    $('loginPass').value='';
+  }
 }
 function showLoggedIn() {
   $('loginScreen').classList.add('hidden'); $('appScreen').classList.remove('hidden');
@@ -360,6 +387,7 @@ async function registerDeviceSession(){
     created_at:now,last_seen_at:now,expires_at:new Date(Date.now()+IDLE_LIMIT_MS).toISOString(),revoked_at:null
   });
   if(error) throw new Error('Gagal membuat sesi perangkat. Pastikan tabel user_device_sessions sudah disiapkan di Supabase. '+error.message);
+  sessionStorage.setItem('sdm_device_session_id',deviceSessionId);
 }
 async function touchDeviceSession(){
   if(!current||!deviceSessionId)return;
@@ -374,6 +402,7 @@ async function endDeviceSession(){
     try{await sb.from(DEVICE_SESSION_TABLE).update({revoked_at:new Date().toISOString()}).eq('id',deviceSessionId).eq('user_id',current.id)}catch(_){}
   }
   deviceSessionId=null;
+  sessionStorage.removeItem('sdm_device_session_id');
 }
 function resetIdleTimer(){
   lastUserActivity=Date.now();
@@ -432,15 +461,9 @@ function startPresenceTracking(){
   presenceRefreshTimer=setInterval(refreshActiveUsers,20000);
 }
 window.addEventListener('pagehide',()=>{
+  // pagehide juga terjadi saat refresh/navigasi; jangan cabut sesi di sini.
+  // sessionStorage mempertahankan autentikasi pada refresh tab yang sama.
   stopSessionGuards();if(presenceRefreshTimer)clearInterval(presenceRefreshTimer);
-  // Best effort: tandai sesi berakhir ketika tab/browser ditutup.
-  if(deviceSessionId&&supabaseSession?.access_token){
-    fetch(`${SUPABASE_URL}/rest/v1/${DEVICE_SESSION_TABLE}?id=eq.${encodeURIComponent(deviceSessionId)}`,{
-      method:'PATCH',keepalive:true,
-      headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${supabaseSession.access_token}`,'Content-Type':'application/json',Prefer:'return=minimal'},
-      body:JSON.stringify({revoked_at:new Date().toISOString()})
-    }).catch(()=>{});
-  }
 });
 
 function toggleLoginPasswordVisibility(){
