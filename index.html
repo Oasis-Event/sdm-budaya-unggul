@@ -136,7 +136,7 @@
 </section>
 <section id="formcatpers" class="hidden"><div class="eyebrow">FORM CATPERS</div><h1>Form Catpers</h1><p class="desc">Cari personel berdasarkan NRP atau pilih dari daftar personel, kemudian masukkan catatan.</p>
 <div class="assessment-layout"><div class="panel assessment-left"><div class="ph"><h2>Pencarian Personel</h2></div><button class="btn" type="button" onclick="openCatpersPicker()">☷ LIST PERSONEL</button><div class="field"><label>PENCARIAN BERDASARKAN NRP</label><div class="row nrp-search-row"><input id="catSearchNrp" inputmode="numeric" placeholder="Masukkan NRP personel" oninput="toggleCatpersClear()" onkeydown="if(event.key==='Enter')checkCatpersPerson()"><button class="btn" type="button" onclick="checkCatpersPerson()">CEK</button><button id="clearCatpersSearch" class="btn light" type="button" onclick="clearCatpersPerson()" title="Hapus pencarian" aria-label="Hapus pencarian" style="display:none;padding:8px 13px;font-size:18px;font-weight:800">×</button></div></div><div id="catPersonInfo" class="person-detail-box"><div class="muted">Belum ada personel dipilih. Klik LIST PERSONEL atau masukkan NRP lalu klik CEK.</div></div></div>
-<div class="panel assessment-right"><div class="ph"><h2>Input Catatan Personel</h2><span class="pill blue">Catpers</span></div><div class="assessment-meta"><div class="field"><label>TAHUN PENILAIAN</label><input id="catYear" type="number" value="2026"></div><div class="field"><label>SEMESTER</label><select id="catSemester"><option value="1">Semester I (Januari–Juni)</option><option value="2" selected>Semester II (Juli–Desember)</option></select></div><div class="field"><label>JENIS / STATUS CATATAN</label><select id="catStatus" onchange="previewCatpersScore()"><option value="" selected>Pilih status Catpers terlebih dahulu</option><option value="no_record">Tidak memiliki catatan personel (+5)</option><option value="not_proven">Memiliki catatan, tidak terbukti bersalah (+5)</option><option value="proven_done">Terbukti bersalah, sudah selesai (−3)</option><option value="proven_pending">Terbukti bersalah, belum selesai (−5)</option></select></div></div><div class="field"><label>KETERANGAN / JENIS PELANGGARAN</label><textarea id="catNote" rows="4" placeholder="Keterangan / jenis pelanggaran (opsional)"></textarea></div><div class="footer" id="catScorePreview">Nilai dasar Catpers 75 · Belum ada input operator</div><button class="btn block" onclick="saveCatpers()">SIMPAN CATPERS</button></div></div>
+<div class="panel assessment-right"><div class="ph"><h2>Input Catatan Personel</h2><span class="pill blue">Catpers</span></div><div id="catpersLockNotice" class="footer" style="margin-bottom:12px">Pilih personel dan periode untuk memeriksa status pengisian.</div><div class="assessment-meta"><div class="field"><label>TAHUN PENILAIAN</label><input id="catYear" type="number" value="2026" onchange="refreshCatpersFormState()"></div><div class="field"><label>SEMESTER</label><select id="catSemester" onchange="refreshCatpersFormState()"><option value="1">Semester I (Januari–Juni)</option><option value="2" selected>Semester II (Juli–Desember)</option></select></div><div class="field"><label>JENIS / STATUS CATATAN</label><select id="catStatus" onchange="previewCatpersScore()"><option value="" selected>Pilih status Catpers terlebih dahulu</option><option value="no_record">Tidak memiliki catatan personel (+5)</option><option value="not_proven">Memiliki catatan, tidak terbukti bersalah (+5)</option><option value="proven_done">Terbukti bersalah, sudah selesai (−3)</option><option value="proven_pending">Terbukti bersalah, belum selesai (−5)</option></select></div></div><div class="field"><label>KETERANGAN / JENIS PELANGGARAN</label><textarea id="catNote" rows="4" placeholder="Keterangan / jenis pelanggaran (opsional)"></textarea></div><div class="footer" id="catScorePreview">Nilai dasar Catpers 75 · Belum ada input operator</div><button id="saveCatpersBtn" class="btn block" onclick="saveCatpers()">SIMPAN CATPERS</button></div></div>
 <div class="panel"><div class="ph"><h2>Riwayat Catpers</h2></div><div id="catList" class="tiny">Belum ada catatan pada sesi demo.</div></div></section>
 
 
@@ -194,13 +194,32 @@ async function sbError(result, label) {
   }
   return result?.data;
 }
+
+// Ambil seluruh riwayat Catpers secara bertahap agar batas default Supabase
+// (umumnya 1.000 baris per permintaan) tidak membuat catatan lama terlewat.
+async function fetchAllCatpers() {
+  const pageSize = 1000;
+  const allRows = [];
+  for (let from = 0; ; from += pageSize) {
+    const result = await sb.from('catpers')
+      .select('nrp,nama,tahun,semester,status,note,keterangan,periode,input_oleh')
+      .order('nrp', { ascending: true })
+      .order('tahun', { ascending: true })
+      .order('semester', { ascending: true })
+      .range(from, from + pageSize - 1);
+    const rows = await sbError(result, 'Memuat Catpers');
+    allRows.push(...(rows || []));
+    if (!rows || rows.length < pageSize) break;
+  }
+  return allRows;
+}
 async function loadCloudData() {
   // Data demo bawaan tidak dipakai sebagai sumber data produksi.
   roster.clear(); components.length = 0; catpersRecords.length = 0; moveHistory.length = 0;
   const [people, assessments, cats, moves, mappings] = await Promise.all([
     sb.from('personel').select('nrp,nama,pangkat,jabatan,tmt,satker,aktif').order('nama'),
     sb.from('penilaian').select('id,nrp,nama,tahun,semester,nilai_akhir,catatan'),
-    sb.from('catpers').select('nrp,nama,tahun,semester,status,note,keterangan,periode'),
+    fetchAllCatpers(),
     sb.from('mutasi').select('nrp,nama,pangkat,jabatan,jabatan_tujuan,dari,ke,tanggal_mutasi'),
     sb.from('satker_mapping').select('satker_induk,satker_asli,aktif').eq('aktif', true)
   ]);
@@ -224,7 +243,7 @@ async function loadCloudData() {
   });
   (cRows || []).forEach(c => catpersRecords.push({
     nrp:c.nrp,nama:c.nama,tahun:c.tahun,semester:c.semester,
-    status:c.status,note:c.note ?? c.keterangan ?? '',period:c.periode || `SMT ${c.semester} ${c.tahun}`
+    status:c.status,note:c.note ?? c.keterangan ?? '',period:c.periode || `SMT ${c.semester} ${c.tahun}`,input_oleh:c.input_oleh||null
   }));
   (mRows || []).forEach(m => moveHistory.push({
     nrp:m.nrp,nama:m.nama,pangkat:m.pangkat,jabatan:m.jabatan,
@@ -810,25 +829,59 @@ function catpersRule(status){if(CATPERS_RULES[status])return CATPERS_RULES[statu
 function catpersValue(status){const rule=catpersRule(status);return Number((75+rule.score).toFixed(2))}
 function previewCatpersScore(){const status=$('catStatus')?.value||'';if(!status){if($('catScorePreview'))$('catScorePreview').textContent='Nilai dasar Catpers 75 · Belum ada input operator';return}const rule=catpersRule(status),value=catpersValue(status);if($('catScorePreview'))$('catScorePreview').textContent=`Nilai dasar 75 ${rule.score>0?'+':''}${rule.score} · Nilai Catpers ${value.toFixed(2).replace('.',',')} · Bobot Nilai Akhir mengikuti Form Rumus Penilaian`}
 function renderCatpersHistory(){const el=$('catList');if(!el)return;const rows=catpersRecords.slice().sort((a,b)=>b.tahun-a.tahun||b.semester-a.semester||String(a.nama).localeCompare(String(b.nama),'id'));el.innerHTML=rows.length?`<div class="tablewrap"><table><thead><tr><th>NRP</th><th>NAMA</th><th>PERIODE</th><th>STATUS CATPERS</th><th>SKOR</th><th>NILAI CATPERS</th><th>KETERANGAN</th></tr></thead><tbody>${rows.map(c=>{const r=catpersRule(c.status);return `<tr><td>${esc(c.nrp)}</td><td>${esc(c.nama)}</td><td>${esc(c.period)}</td><td>${esc(r.label)}</td><td>${r.score>0?'+':''}${r.score}</td><td><b>${catpersValue(c.status).toFixed(2).replace('.',',')}</b></td><td>${esc(c.note||'—')}</td></tr>`}).join('')}</tbody></table></div>`:'Belum ada riwayat Catpers.'}
+function getCatpersRecordForPeriod(nrp,year,semester){
+  return catpersRecords.find(x=>String(x.nrp)===String(nrp)&&Number(x.tahun)===Number(year)&&Number(x.semester)===Number(semester))||null;
+}
+function setCatpersFieldsDisabled(disabled){
+  ['catStatus','catNote'].forEach(id=>{const el=$(id);if(el)el.disabled=!!disabled});
+}
+function refreshCatpersFormState(){
+  const year=Number($('catYear')?.value),semester=Number($('catSemester')?.value);
+  const row=catpersPersonNrp?getCatpersRecordForPeriod(catpersPersonNrp,year,semester):null;
+  const notice=$('catpersLockNotice'),btn=$('saveCatpersBtn');
+  if(!row){
+    setCatpersFieldsDisabled(false);
+    if(notice)notice.textContent='Belum ada Catpers pada periode ini. Operator maupun Admin Utama dapat mengisi.';
+    if(btn){btn.disabled=false;btn.textContent='SIMPAN CATPERS'}
+    if($('catStatus'))$('catStatus').value='';if($('catNote'))$('catNote').value='';previewCatpersScore();return;
+  }
+  $('catStatus').value=row.status||'';$('catNote').value=row.note||'';
+  const lockedForOperator=!isMainAdmin();
+  setCatpersFieldsDisabled(lockedForOperator);
+  if(notice)notice.textContent=lockedForOperator
+    ?'🔒 CATPERS SUDAH TERSIMPAN. Data periode ini hanya dapat dikoreksi Admin Utama. Operator hanya dapat melihat.'
+    :'CATPERS SUDAH TERSIMPAN. Anda sebagai Admin Utama dapat melakukan koreksi; perubahan akan tercatat dalam riwayat audit Supabase.';
+  if(btn){btn.disabled=lockedForOperator;btn.textContent=lockedForOperator?'CATPERS TERKUNCI':'KOREKSI CATPERS (ADMIN UTAMA)'}
+  previewCatpersScore();
+}
 async function saveCatpers(){
   if(!catpersPersonNrp){alert('Pilih personel terlebih dahulu melalui LIST PERSONEL atau pencarian NRP.');return}
   const p=roster.get(String(catpersPersonNrp));if(!p)return alert('Data personel tidak ditemukan.');
-  const year=Number($('catYear').value),semester=Number($('catSemester').value),note=$('catNote').value.trim(),status=$('catStatus').value,rule=catpersRule(status);
+  const year=Number($('catYear').value),semester=Number($('catSemester').value),note=$('catNote').value.trim(),status=$('catStatus').value;
   if(!year){alert('Lengkapi Tahun Penilaian.');return}
   if(!status){alert('Pilih Jenis / Status Catatan terlebih dahulu.');return}
-  const period=`SMT ${semester} ${year}`;
+  const period=`SMT ${semester} ${year}`,existing=getCatpersRecordForPeriod(p.nrp,year,semester);
+  if(existing&&!isMainAdmin())return alert('Catpers periode ini sudah tersimpan. Operator tidak dapat menimpa atau mengubahnya.');
   try{
-    const {error}=await sb.from('catpers').insert({nrp:p.nrp,nama:p.nama,tahun:year,semester,status,note,keterangan:note,periode:period,input_oleh:current.id});
-    if(error)throw error;await loadCloudData();$('catNote').value='';renderCatpersHistory();previewCatpersScore();alert(`Catpers berhasil disimpan. Nilai Catpers: ${catpersValue(status).toFixed(2).replace('.',',')}.`);
-  }catch(e){console.error(e);alert('Gagal menyimpan Catpers: '+e.message)}
+    let result;
+    if(existing){
+      if(!isMainAdmin())throw new Error('Hanya Admin Utama yang dapat mengoreksi Catpers yang sudah tersimpan.');
+      result=await sb.from('catpers').update({nama:p.nama,status,note,keterangan:note,periode:period,input_oleh:current.id}).eq('nrp',p.nrp).eq('tahun',year).eq('semester',semester);
+    }else{
+      result=await sb.from('catpers').insert({nrp:p.nrp,nama:p.nama,tahun:year,semester,status,note,keterangan:note,periode:period,input_oleh:current.id});
+    }
+    if(result.error)throw result.error;
+    await loadCloudData();$('catNote').value='';renderCatpersHistory();refreshCatpersFormState();
+    alert(existing?'Koreksi Catpers berhasil disimpan dan dicatat pada audit database.':`Catpers berhasil disimpan. Nilai Catpers: ${catpersValue(status).toFixed(2).replace('.',',')}.`);
+  }catch(e){console.error(e);alert('Gagal menyimpan Catpers: '+(e.message||'Kesalahan Supabase')+(String(e.code)==='23505'?' Data periode tersebut sudah diinput pengguna lain. Muat ulang data.':''))}
 }
 
 function openCatpersPicker(){pickerMode='catpers';let units=[...new Set(visibleRoster().map(p=>p.satker))].sort();$('pickerUnit').innerHTML='<option value="">Semua Satker / Satwil</option>'+units.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('');$('pickerSearch').value='';$('pickerTitle').textContent='Pilih Personel untuk Form Catpers';renderPicker();$('personPicker').classList.add('show')}
 function closePersonnelPicker(){$('personPicker').classList.remove('show')}
 function toggleCatpersClear(){const btn=$('clearCatpersSearch');if(btn)btn.style.display=$('catSearchNrp').value.trim()?'inline-flex':'none'}
 function renderCatpersPerson(p){$('catPersonInfo').innerHTML=`<div style="font-weight:800;color:#0e5265;margin-bottom:10px">Keterangan Personil</div><div class="person-detail-grid"><strong>NRP</strong><span>${esc(p.nrp)}</span><strong>Nama</strong><span>${esc(p.nama)}</span><strong>Satker</strong><span>${esc(p.satker)}</span><strong>Jenis Kelamin</strong><span>${esc(p.jenisKelamin||p.jenis_kelamin||p.gender||'—')}</span><strong>Jabatan</strong><span>${esc(p.jabatan)}</span><strong>Pangkat</strong><span>${esc(p.pangkat)}</span></div>`}
-function clearCatpersPerson(){catpersPersonNrp='';$('catSearchNrp').value='';$('catPersonInfo').innerHTML='<div class="muted">Belum ada personel dipilih. Klik LIST PERSONEL atau masukkan NRP lalu klik CEK.</div>';toggleCatpersClear()}
-function checkCatpersPerson(){let nrp=$('catSearchNrp').value.trim(),p=roster.get(nrp);toggleCatpersClear();if(!p){catpersPersonNrp='';$('catPersonInfo').innerHTML='<span style="color:#a83333;font-weight:700">Personel tidak ditemukan. Periksa kembali NRP atau gunakan LIST PERSONEL.</span>';return}catpersPersonNrp=p.nrp;renderCatpersPerson(p)}
+function clearCatpersPerson(){catpersPersonNrp='';$('catSearchNrp').value='';$('catPersonInfo').innerHTML='<div class="muted">Belum ada personel dipilih. Klik LIST PERSONEL atau masukkan NRP lalu klik CEK.</div>';toggleCatpersClear();setCatpersFieldsDisabled(false);$('catpersLockNotice').textContent='Pilih personel dan periode untuk memeriksa status pengisian.';$('saveCatpersBtn').disabled=false;$('saveCatpersBtn').textContent='SIMPAN CATPERS'}
+function checkCatpersPerson(){let nrp=$('catSearchNrp').value.trim(),p=roster.get(nrp);toggleCatpersClear();if(!p){catpersPersonNrp='';$('catPersonInfo').innerHTML='<span style="color:#a83333;font-weight:700">Personel tidak ditemukan. Periksa kembali NRP atau gunakan LIST PERSONEL.</span>';return}catpersPersonNrp=p.nrp;renderCatpersPerson(p);refreshCatpersFormState()}
 function choosePickerPerson(nrp){
   const p=roster.get(String(nrp));
   if(!p)return;
@@ -837,6 +890,7 @@ function choosePickerPerson(nrp){
     $('catSearchNrp').value=p.nrp;
     toggleCatpersClear();
     renderCatpersPerson(p);
+    refreshCatpersFormState();
     closePersonnelPicker();
     return;
   }
