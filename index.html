@@ -182,6 +182,7 @@ let supabaseSession = null;
 const IDLE_LIMIT_MS = 5 * 60 * 1000;
 const DEVICE_SESSION_TABLE = 'user_device_sessions';
 let deviceSessionId = null, idleTimer = null, sessionHeartbeatTimer = null, sessionCheckBusy = false;
+let loginInProgress = false;
 let lastUserActivity = Date.now();
 let satkerMappings = [];
 let satkerMappingLoaded = false;
@@ -379,8 +380,26 @@ function deviceLabel(){
   return browser+' · '+os;
 }
 async function registerDeviceSession(){
-  deviceSessionId=makeDeviceId();
   const now=new Date().toISOString();
+  const savedId=sessionStorage.getItem('sdm_device_session_id');
+  // Jika login di tab yang sama, gunakan kembali catatan sesi yang sudah ada.
+  // Ini mencegah catatan ganda akibat klik login berulang atau login ulang cepat.
+  if(savedId){
+    const {data:existing,error:lookupError}=await sb.from(DEVICE_SESSION_TABLE)
+      .select('id,user_id,revoked_at').eq('id',savedId).maybeSingle();
+    if(lookupError) throw lookupError;
+    if(existing && existing.user_id===current.id && !existing.revoked_at){
+      deviceSessionId=savedId;
+      const {error:updateError}=await sb.from(DEVICE_SESSION_TABLE).update({
+        nama:current.name,username:current.username,role:current.role,satker:current.unit,
+        device_label:deviceLabel(),last_seen_at:now,
+        expires_at:new Date(Date.now()+IDLE_LIMIT_MS).toISOString()
+      }).eq('id',savedId).eq('user_id',current.id);
+      if(updateError) throw new Error('Gagal memperbarui sesi perangkat. '+updateError.message);
+      return;
+    }
+  }
+  deviceSessionId=makeDeviceId();
   const {error}=await sb.from(DEVICE_SESSION_TABLE).insert({
     id:deviceSessionId,user_id:current.id,nama:current.name,username:current.username,
     role:current.role,satker:current.unit,device_label:deviceLabel(),
@@ -476,6 +495,10 @@ function toggleLoginPasswordVisibility(){
   button.title=showing?'Sembunyikan password':'Tampilkan password';
 }
 async function login(){
+  if(loginInProgress) return;
+  loginInProgress=true;
+  const loginButton=document.querySelector('#loginScreen button[onclick="login()"]');
+  if(loginButton){loginButton.disabled=true;loginButton.textContent='MEMERIKSA…'}
   const u=$('loginUser').value.trim(), p=$('loginPass').value;
   $('loginError').textContent='Memeriksa akun…';
   try {
@@ -495,6 +518,9 @@ async function login(){
     await sb.auth.signOut().catch(()=>{});
     current=null;
     $('loginError').textContent=e.message || 'Login gagal. Periksa email dan password.';
+  } finally {
+    loginInProgress=false;
+    if(loginButton){loginButton.disabled=false;loginButton.textContent='MASUK APLIKASI'}
   }
 }
 async function logout(reason=''){
@@ -531,7 +557,7 @@ function dashboardScoredSet(period=activePeriod()){
   }).map(c=>String(c.nrp)));
 }
 function renderDashboardUnitProgress(){let a=visibleRoster(),period=activePeriod(),scored=dashboardScoredSet(period),units=sortSatkerNames(a.map(p=>p.satker)),size=Number($('dashboardUnitPageSize')?.value||10),pages=Math.max(1,Math.ceil(units.length/size));dashboardUnitPage=Math.max(1,Math.min(dashboardUnitPage,pages));let start=(dashboardUnitPage-1)*size,shown=units.slice(start,start+size),cfg=dashboardProgressConfig();$('dashboardUnitProgress').innerHTML=shown.map(u=>{let members=a.filter(p=>p.satker===u),n=members.filter(p=>scored.has(String(p.nrp))).length,not=members.length-n,rate=members.length?Math.round(n/members.length*100):0;return `<div class="unit-progress-row" style="grid-template-columns:minmax(130px,1fr) 2fr minmax(115px,auto)"><b>${esc(u)}</b><div><div class="unit-mini-track"><div class="unit-mini-fill" style="width:${rate}%"></div></div><span class="tiny">${rate}% · ${n} sudah input ${esc(cfg.label)}</span></div><span style="text-align:right">${members.length} personel<br><span class="tiny">${not} belum</span></span></div>`}).join('')||'<span class="muted">Belum ada data satuan.</span>';$('dashboardUnitPageInfo').textContent=`Menampilkan ${units.length?start+1:0}–${Math.min(start+size,units.length)} dari ${units.length} satuan`;$('dashboardUnitPageNum').textContent=`Halaman ${dashboardUnitPage} / ${pages}`}
-function renderDashboardProgress(){let a=visibleRoster(),period=activePeriod(),scored=dashboardScoredSet(period),done=a.filter(p=>scored.has(String(p.nrp))).length,not=Math.max(0,a.length-done),pct=a.length?Math.round(done/a.length*100):0,cfg=dashboardProgressConfig();if($('dashboardProgressLabel'))$('dashboardProgressLabel').textContent=pct+'%';if($('dashboardProgressBar'))$('dashboardProgressBar').style.width=pct+'%';if($('dashboardScored'))$('dashboardScored').textContent=done+' personel sudah input '+cfg.label;if($('dashboardUnscored'))$('dashboardUnscored').textContent=not+' belum input '+cfg.label;renderDashboardUnitProgress()}
+function renderDashboardStats(){let a=visibleRoster(),period=activePeriod(),scored=dashboardScoredSet(period),done=a.filter(p=>scored.has(String(p.nrp))).length,not=Math.max(0,a.length-done);if($('stats'))$('stats').innerHTML=[['Total personel',a.length,'Dalam cakupan satuan akun'],['Sudah dinilai',done,'Periode '+period],['Belum dinilai',not,'Perlu tindak lanjut operator']].map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="num">${x[1]}</div><div class="tiny">${x[2]}</div></div>`).join('')} function renderDashboardProgress(){renderDashboardStats();let a=visibleRoster(),period=activePeriod(),scored=dashboardScoredSet(period),done=a.filter(p=>scored.has(String(p.nrp))).length,not=Math.max(0,a.length-done),pct=a.length?Math.round(done/a.length*100):0,cfg=dashboardProgressConfig();if($('dashboardProgressLabel'))$('dashboardProgressLabel').textContent=pct+'%';if($('dashboardProgressBar'))$('dashboardProgressBar').style.width=pct+'%';if($('dashboardScored'))$('dashboardScored').textContent=done+' personel sudah input '+cfg.label;if($('dashboardUnscored'))$('dashboardUnscored').textContent=not+' belum input '+cfg.label;renderDashboardUnitProgress()}
 function changeDashboardUnitPage(d){let units=sortSatkerNames(visibleRoster().map(p=>p.satker)),pages=Math.max(1,Math.ceil(units.length/Number($('dashboardUnitPageSize')?.value||10)));dashboardUnitPage=Math.max(1,Math.min(pages,dashboardUnitPage+d));renderDashboardUnitProgress()}
 function activePeriod(){
   // Samakan format periode pilihan UI (SMT II 2026) dengan format
