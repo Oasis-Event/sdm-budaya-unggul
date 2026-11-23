@@ -1216,13 +1216,30 @@ function renderMoveHistory(){
  $('movePageInfo').textContent=`Menampilkan ${rows.length?start+1:0}–${Math.min(start+size,rows.length)} dari ${rows.length} personel`;$('movePageNum').textContent=`Halaman ${movePage} / ${pages}`;
 }
 function changeMovePage(d){let q=($('moveSearch')?.value||'').toLowerCase(),rows=[...roster.values()].filter(p=>[p.nrp,p.nama,p.pangkat,p.jabatan,p.satker].join(' ').toLowerCase().includes(q)),pages=Math.max(1,Math.ceil(rows.length/Number($('movePageSize')?.value||10)));movePage=Math.max(1,Math.min(pages,movePage+d));renderMoveHistory()}
-function deleteRosterPerson(nrp){
- let p=roster.get(String(nrp));if(!p)return;
- if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat menghapus nominatif.');return}
- if(!confirm(`Hapus ${p.nama} (${p.nrp}) dari Daftar Nominatif Personel? Data penilaian historis tidak ikut dihapus.`))return;
- roster.delete(String(nrp));
- if(moveSelectedNrp===String(nrp)){moveSelectedNrp='';$('moveSearchNrp').value='';$('moveCurrentUnit').value='';$('movePersonInfo').innerHTML='<span class="muted">Personel telah dihapus dari nominatif.</span>'}
- refreshUnitFilter();fillPersonSelects();renderAll();renderMoveHistory();
+async function deleteRosterPerson(nrp){
+ const key=String(nrp||'').trim();
+ const p=roster.get(key);if(!p)return;
+ if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat menghapus data personel.');return}
+ const message=`HAPUS PERMANEN SELURUH DATA PERSONEL?\n\nNama: ${p.nama}\nNRP: ${p.nrp}\n\nData yang akan dihapus dari Supabase:\n• Data nominatif personel\n• Seluruh nilai/riwayat penilaian\n• Seluruh Catpers\n• Riwayat mutasi\n• Pengajuan mutasi\n\nPenghapusan tidak dapat dibatalkan. Lanjutkan?`;
+ if(!confirm(message))return;
+ try{
+  // Hapus tabel-tabel riwayat terlebih dahulu, baru data induk personel.
+  // Setiap hasil diperiksa agar kegagalan tidak dianggap sebagai penghapusan berhasil.
+  const tables=['penilaian','catpers','mutasi','permohonan_mutasi'];
+  for(const table of tables){
+   const result=await sb.from(table).delete().eq('nrp',key);
+   if(result.error)throw new Error(`Gagal menghapus ${table}: ${result.error.message||'Kesalahan Supabase'}`);
+  }
+  const personResult=await sb.from('personel').delete().eq('nrp',key);
+  if(personResult.error)throw new Error(`Gagal menghapus data personel: ${personResult.error.message||'Kesalahan Supabase'}`);
+  if(moveSelectedNrp===key){moveSelectedNrp='';$('moveSearchNrp').value='';$('moveCurrentUnit').value='';$('movePersonInfo').innerHTML='<span class="muted">Personel telah dihapus permanen.</span>'}
+  await loadCloudData();
+  if(typeof loadMutationRequests==='function')await loadMutationRequests();
+  alert(`Seluruh data ${p.nama} (${key}) berhasil dihapus dari sistem.`);
+ }catch(e){
+  console.error('Penghapusan personel gagal:',e);
+  alert('Penghapusan belum berhasil sepenuhnya. Periksa izin DELETE/RLS tabel Supabase dan pesan berikut:\n'+(e.message||'Kesalahan tidak diketahui')+'\n\nJangan ulangi sebelum memeriksa data di Supabase.');
+ }
 }
 function exportUnitProgressWA(){
  let period=activePeriod(),people=visibleRoster(),scored=dashboardScoredSet(period),cfg=dashboardProgressConfig();
