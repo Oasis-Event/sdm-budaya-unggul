@@ -198,11 +198,13 @@ async function sbError(result, label) {
 // Ambil seluruh riwayat Catpers secara bertahap agar batas default Supabase
 // (umumnya 1.000 baris per permintaan) tidak membuat catatan lama terlewat.
 async function fetchAllCatpers() {
+  // Ambil hanya kolom inti yang dipakai aplikasi. Kolom periode bersifat turunan
+  // dari semester+tahun sehingga tidak menjadi syarat pembacaan data Catpers.
   const pageSize = 1000;
   const allRows = [];
   for (let from = 0; ; from += pageSize) {
     const result = await sb.from('catpers')
-      .select('nrp,nama,tahun,semester,status,note,keterangan,periode,input_oleh')
+      .select('nrp,nama,tahun,semester,status,note,keterangan,input_oleh')
       .order('nrp', { ascending: true })
       .order('tahun', { ascending: true })
       .order('semester', { ascending: true })
@@ -243,7 +245,7 @@ async function loadCloudData() {
   });
   (cRows || []).forEach(c => catpersRecords.push({
     nrp:c.nrp,nama:c.nama,tahun:c.tahun,semester:c.semester,
-    status:c.status,note:c.note ?? c.keterangan ?? '',period:c.periode || `SMT ${c.semester} ${c.tahun}`,input_oleh:c.input_oleh||null
+    status:c.status,note:c.note ?? c.keterangan ?? '',period:`SMT ${c.semester} ${c.tahun}`,input_oleh:c.input_oleh||null
   }));
   (mRows || []).forEach(m => moveHistory.push({
     nrp:m.nrp,nama:m.nama,pangkat:m.pangkat,jabatan:m.jabatan,
@@ -829,8 +831,14 @@ function catpersRule(status){if(CATPERS_RULES[status])return CATPERS_RULES[statu
 function catpersValue(status){const rule=catpersRule(status);return Number((75+rule.score).toFixed(2))}
 function previewCatpersScore(){const status=$('catStatus')?.value||'';if(!status){if($('catScorePreview'))$('catScorePreview').textContent='Nilai dasar Catpers 75 · Belum ada input operator';return}const rule=catpersRule(status),value=catpersValue(status);if($('catScorePreview'))$('catScorePreview').textContent=`Nilai dasar 75 ${rule.score>0?'+':''}${rule.score} · Nilai Catpers ${value.toFixed(2).replace('.',',')} · Bobot Nilai Akhir mengikuti Form Rumus Penilaian`}
 function renderCatpersHistory(){const el=$('catList');if(!el)return;const rows=catpersRecords.slice().sort((a,b)=>b.tahun-a.tahun||b.semester-a.semester||String(a.nama).localeCompare(String(b.nama),'id'));el.innerHTML=rows.length?`<div class="tablewrap"><table><thead><tr><th>NRP</th><th>NAMA</th><th>PERIODE</th><th>STATUS CATPERS</th><th>SKOR</th><th>NILAI CATPERS</th><th>KETERANGAN</th></tr></thead><tbody>${rows.map(c=>{const r=catpersRule(c.status);return `<tr><td>${esc(c.nrp)}</td><td>${esc(c.nama)}</td><td>${esc(c.period)}</td><td>${esc(r.label)}</td><td>${r.score>0?'+':''}${r.score}</td><td><b>${catpersValue(c.status).toFixed(2).replace('.',',')}</b></td><td>${esc(c.note||'—')}</td></tr>`}).join('')}</tbody></table></div>`:'Belum ada riwayat Catpers.'}
+function normalizePersonelKey(value){
+  // NRP/NIP disimpan sebagai teks agar angka nol di depan tidak hilang.
+  return String(value ?? '').trim().replace(/\s+/g,'');
+}
 function getCatpersRecordForPeriod(nrp,year,semester){
-  return catpersRecords.find(x=>String(x.nrp)===String(nrp)&&Number(x.tahun)===Number(year)&&Number(x.semester)===Number(semester))||null;
+  const key=normalizePersonelKey(nrp),y=Number(year),sem=Number(semester);
+  if(!key||!y||!sem)return null;
+  return catpersRecords.find(x=>normalizePersonelKey(x.nrp)===key&&Number(x.tahun)===y&&Number(x.semester)===sem)||null;
 }
 function setCatpersFieldsDisabled(disabled){
   ['catStatus','catNote'].forEach(id=>{const el=$(id);if(el)el.disabled=!!disabled});
@@ -866,9 +874,9 @@ async function saveCatpers(){
     let result;
     if(existing){
       if(!isMainAdmin())throw new Error('Hanya Admin Utama yang dapat mengoreksi Catpers yang sudah tersimpan.');
-      result=await sb.from('catpers').update({nama:p.nama,status,note,keterangan:note,periode:period,input_oleh:current.id}).eq('nrp',p.nrp).eq('tahun',year).eq('semester',semester);
+      result=await sb.from('catpers').update({nama:p.nama,status,note,keterangan:note,input_oleh:current.id}).eq('nrp',p.nrp).eq('tahun',year).eq('semester',semester);
     }else{
-      result=await sb.from('catpers').insert({nrp:p.nrp,nama:p.nama,tahun:year,semester,status,note,keterangan:note,periode:period,input_oleh:current.id});
+      result=await sb.from('catpers').insert({nrp:p.nrp,nama:p.nama,tahun:year,semester,status,note,keterangan:note,input_oleh:current.id});
     }
     if(result.error)throw result.error;
     await loadCloudData();$('catNote').value='';renderCatpersHistory();refreshCatpersFormState();
@@ -1217,28 +1225,30 @@ function renderMoveHistory(){
 }
 function changeMovePage(d){let q=($('moveSearch')?.value||'').toLowerCase(),rows=[...roster.values()].filter(p=>[p.nrp,p.nama,p.pangkat,p.jabatan,p.satker].join(' ').toLowerCase().includes(q)),pages=Math.max(1,Math.ceil(rows.length/Number($('movePageSize')?.value||10)));movePage=Math.max(1,Math.min(pages,movePage+d));renderMoveHistory()}
 async function deleteRosterPerson(nrp){
- const key=String(nrp||'').trim();
- const p=roster.get(key);if(!p)return;
+ const key=normalizePersonelKey(nrp);
+ const p=roster.get(String(nrp)) || [...roster.values()].find(x=>normalizePersonelKey(x.nrp)===key);
+ if(!p||!key)return;
  if(!isMainAdmin()){alert('Hanya Admin Utama yang dapat menghapus data personel.');return}
- const message=`HAPUS PERMANEN SELURUH DATA PERSONEL?\n\nNama: ${p.nama}\nNRP: ${p.nrp}\n\nData yang akan dihapus dari Supabase:\n• Data nominatif personel\n• Seluruh nilai/riwayat penilaian\n• Seluruh Catpers\n• Riwayat mutasi\n• Pengajuan mutasi\n\nPenghapusan tidak dapat dibatalkan. Lanjutkan?`;
+ const message=`HAPUS PERMANEN SELURUH DATA PERSONEL?\n\nNama: ${p.nama}\nNRP: ${p.nrp}\n\nYang dihapus hanya data dengan NRP ini pada tabel personel, penilaian, Catpers, mutasi, dan permohonan mutasi. Data anggota lain tidak disentuh.\n\nPenghapusan tidak dapat dibatalkan. Lanjutkan?`;
  if(!confirm(message))return;
  try{
-  // Hapus tabel-tabel riwayat terlebih dahulu, baru data induk personel.
-  // Setiap hasil diperiksa agar kegagalan tidak dianggap sebagai penghapusan berhasil.
+  // Hapus data terkait berdasarkan satu NRP yang sudah dinormalisasi.
+  // Tidak memakai truncate, delete tanpa filter, atau penghapusan seluruh tabel.
   const tables=['penilaian','catpers','mutasi','permohonan_mutasi'];
   for(const table of tables){
-   const result=await sb.from(table).delete().eq('nrp',key);
+   const result=await sb.from(table).delete().eq('nrp',key).select('nrp');
    if(result.error)throw new Error(`Gagal menghapus ${table}: ${result.error.message||'Kesalahan Supabase'}`);
   }
-  const personResult=await sb.from('personel').delete().eq('nrp',key);
+  const personResult=await sb.from('personel').delete().eq('nrp',key).select('nrp');
   if(personResult.error)throw new Error(`Gagal menghapus data personel: ${personResult.error.message||'Kesalahan Supabase'}`);
-  if(moveSelectedNrp===key){moveSelectedNrp='';$('moveSearchNrp').value='';$('moveCurrentUnit').value='';$('movePersonInfo').innerHTML='<span class="muted">Personel telah dihapus permanen.</span>'}
+  if(!personResult.data || personResult.data.length===0)throw new Error('Data personel tidak terhapus. Periksa izin DELETE/RLS atau kecocokan NRP di Supabase.');
+  if(moveSelectedNrp===String(nrp)||normalizePersonelKey(moveSelectedNrp)===key){moveSelectedNrp='';if($('moveSearchNrp'))$('moveSearchNrp').value='';if($('moveCurrentUnit'))$('moveCurrentUnit').value='';if($('movePersonInfo'))$('movePersonInfo').innerHTML='<span class="muted">Personel telah dihapus permanen.</span>'}
   await loadCloudData();
   if(typeof loadMutationRequests==='function')await loadMutationRequests();
-  alert(`Seluruh data ${p.nama} (${key}) berhasil dihapus dari sistem.`);
+  alert(`Seluruh data ${p.nama} (${key}) berhasil dihapus. Data personel lain tetap dipertahankan.`);
  }catch(e){
   console.error('Penghapusan personel gagal:',e);
-  alert('Penghapusan belum berhasil sepenuhnya. Periksa izin DELETE/RLS tabel Supabase dan pesan berikut:\n'+(e.message||'Kesalahan tidak diketahui')+'\n\nJangan ulangi sebelum memeriksa data di Supabase.');
+  alert('Penghapusan belum dapat dipastikan selesai. Jangan ulangi dulu. Periksa tabel Supabase dan pesan berikut:\n'+(e.message||'Kesalahan tidak diketahui'));
  }
 }
 function exportUnitProgressWA(){
